@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
+  from = "/api/openrouteservice/*"
+  to = "/.netlify/functions/openrouteservice?path=:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/opencage/reverse"
+  to = "/.netlify/functions/opencage-reverse"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
