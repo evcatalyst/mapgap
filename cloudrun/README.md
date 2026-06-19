@@ -76,6 +76,21 @@ Validate the service before updating Netlify:
 curl https://YOUR-CLOUD-RUN-SERVICE-URL/status
 ```
 
+## Troubleshooting
+
+If Cloud Run reports `Build failed` while the trigger is configured with branch
+regex `^main$`, make sure the `Dockerfile` has been merged to `main`. Before
+that merge, either merge the Cloud Run config PR or temporarily point the trigger
+at the branch that contains the Dockerfile.
+
+If Cloud Run reports that the container failed to listen on `PORT=8082`, edit the
+service and set the container port to `8002`. The Valhalla image listens on
+`8002`; Cloud Run's configured container port must match that internal port.
+
+If the revision shows the `gcr.io/cloudrun/placeholder` image, that is not the
+Valhalla container. Check the build logs, fix the build or port settings, and
+deploy a new revision from the built image.
+
 ## Operational Note
 
 The Valhalla image builds tiles under `/custom_files` on startup. Cloud Run's
