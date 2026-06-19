@@ -80,8 +80,14 @@ directly.
 Validate the service before updating Netlify:
 
 ```bash
-curl https://YOUR-CLOUD-RUN-SERVICE-URL/status
+curl -s https://YOUR-CLOUD-RUN-SERVICE-URL/isochrone \
+  -H 'Content-Type: application/json' \
+  --data '{"locations":[{"lat":42.7798,"lon":-73.8457}],"costing":"pedestrian","contours":[{"time":1}],"polygons":false}'
 ```
+
+The response should be a GeoJSON `FeatureCollection`. A Cloud Run placeholder
+HTML page or a JSON object with only service/revision metadata means Valhalla is
+not deployed yet.
 
 ## Troubleshooting
 
