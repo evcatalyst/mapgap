@@ -4,6 +4,7 @@ import { timingSafeEqual } from "crypto";
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 const ORS_ISOCHRONE_SMOOTHING = 85;
 const VALHALLA_MAX_CONTOURS_PER_REQUEST = 4;
+const VALHALLA_SECRET_HEADER = "X-Valhalla-Shared-Secret";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Accept",
@@ -216,6 +217,20 @@ function authorizeValhalla(payload) {
   return undefined;
 }
 
+function getValhallaProxyHeaders(event) {
+  const sharedSecret = getConfiguredSecret("VALHALLA_SHARED_SECRET");
+  const headers = {
+    Accept: event.headers.accept || "application/json, application/geo+json",
+    "Content-Type": "application/json",
+  };
+
+  if (sharedSecret) {
+    headers[VALHALLA_SECRET_HEADER] = sharedSecret;
+  }
+
+  return headers;
+}
+
 function chunkArray(values, size) {
   const chunks = [];
 
@@ -229,10 +244,7 @@ function chunkArray(values, size) {
 async function fetchValhallaIsochroneChunk(baseUrl, event, point, costing, costing_options, contours) {
   return fetch(`${baseUrl}/isochrone`, {
     method: "POST",
-    headers: {
-      Accept: event.headers.accept || "application/json, application/geo+json",
-      "Content-Type": "application/json",
-    },
+    headers: getValhallaProxyHeaders(event),
     body: JSON.stringify({
       locations: [
         {

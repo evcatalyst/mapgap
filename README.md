@@ -110,10 +110,14 @@ Dockerfile: /Dockerfile
 Build context: /
 ```
 
-Configure the service to send traffic to container port `8002`, then add the
-environment variables from `cloudrun/valhalla-env.yaml`. After the Cloud Run
-service is healthy, set Netlify `VALHALLA_BASE_URL` to the service URL without a
-path suffix. See `cloudrun/README.md` for the full service settings.
+Configure the service to send traffic to container port `8082`, then add the
+environment variables from `cloudrun/valhalla-env.yaml`. The Docker image
+prebuilds the New York Valhalla graph during Cloud Build and starts a small proxy
+on Cloud Run's injected port. After the Cloud Run service is healthy, set Netlify
+`VALHALLA_BASE_URL` to the service URL without a path suffix. Set the same
+`VALHALLA_SHARED_SECRET` value in Netlify and Cloud Run if the direct Cloud Run
+URL should reject public `/isochrone` calls. See `cloudrun/README.md` for the
+full service settings.
 
 Recommended branch protection for `main`:
 
