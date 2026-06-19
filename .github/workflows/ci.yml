@@ -64,14 +64,12 @@ jobs:
           name: mapgap-dist
           path: dist
 
-      - name: Validate Netlify secrets
-        run: |
-          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
-            echo "::error::NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID GitHub secrets are required for preview deploys."
-            exit 1
-          fi
+      - name: Skip preview deploy when Netlify secrets are absent
+        if: env.NETLIFY_AUTH_TOKEN == '' || env.NETLIFY_SITE_ID == ''
+        run: echo "Skipping Netlify preview deploy because NETLIFY_AUTH_TOKEN or NETLIFY_SITE_ID is not configured."
 
       - name: Deploy preview to Netlify
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
         run: >
           npx --yes netlify-cli deploy
           --dir=dist
@@ -96,14 +94,12 @@ jobs:
           name: mapgap-dist
           path: dist
 
-      - name: Validate Netlify secrets
-        run: |
-          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
-            echo "::error::NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID GitHub secrets are required for production deploys."
-            exit 1
-          fi
+      - name: Skip production deploy when Netlify secrets are absent
+        if: env.NETLIFY_AUTH_TOKEN == '' || env.NETLIFY_SITE_ID == ''
+        run: echo "Skipping Netlify production deploy because NETLIFY_AUTH_TOKEN or NETLIFY_SITE_ID is not configured."
 
       - name: Deploy production to Netlify
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
         run: >
           npx --yes netlify-cli deploy
           --prod

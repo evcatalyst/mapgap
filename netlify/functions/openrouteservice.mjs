@@ -1,3 +1,5 @@
+import { getConfiguredSecret } from "./_secrets.mjs";
+
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 const ALLOWED_PATH_PREFIX = "v2/isochrones/";
 
@@ -36,7 +38,7 @@ export async function handler(event) {
     return json(405, { message: "OpenRouteService proxy only accepts POST requests." });
   }
 
-  const apiKey = process.env.OPENROUTE_SERVICE_API_KEY?.trim();
+  const apiKey = getConfiguredSecret("OPENROUTE_SERVICE_API_KEY");
 
   if (!apiKey) {
     return json(503, {

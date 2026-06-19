@@ -21,6 +21,7 @@ import type {
   LayoutMode,
   MapPoint,
   MobilityMode,
+  RoutingProvider,
   ScenarioId,
   ThemeMode,
   TransportMode,
@@ -49,6 +50,7 @@ type MapIsoState = {
   setGenerationError: (message?: string) => void;
   setTimeMinutes: (minutes: number) => void;
   setTransportMode: (mode: TransportMode) => void;
+  setRoutingProvider: (provider: RoutingProvider) => void;
   setMobilityMode: (mode: MobilityMode) => void;
   setViewMode: (mode: ViewMode) => void;
   setIsochroneMode: (mode: IsochroneMode) => void;
@@ -131,6 +133,7 @@ const apiHealth = getInitialApiHealth();
 const defaultSettings: AppSettings = {
   timeMinutes: 15,
   transportMode: MOBILITY_MODES.walk.transportMode,
+  routingProvider: "ors",
   mobilityMode: "walk",
   viewMode: "all",
   isochroneMode: "overlap",
@@ -276,7 +279,9 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
     debugLog("Isochrones updated", { count: features.length });
   },
   clearIsochrones: () => {
-    set({ isochrones: [] });
+    set({
+      isochrones: [],
+    });
     debugLog("Isochrones cleared");
   },
   setGeneratingIsochrones: (value) => set({ isGeneratingIsochrones: value }),
@@ -308,6 +313,16 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
       isochrones: [],
     }));
     debugLog("Transport changed", { mode });
+  },
+  setRoutingProvider: (provider) => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        routingProvider: provider,
+      },
+      isochrones: [],
+    }));
+    debugLog("Routing provider changed", { provider });
   },
   setMobilityMode: (mode) => {
     set((state) => ({
@@ -452,14 +467,29 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
       nextApiHealth = getUnavailableApiHealth();
     }
 
-    set((state) => ({
-      status: {
-        ...state.status,
-        apiStatus: nextApiHealth.status,
-        apiCapabilities: nextApiHealth.capabilities,
-        apiMessage: nextApiHealth.message,
-      },
-    }));
+    set((state) => {
+      const capabilities = nextApiHealth.capabilities;
+      const currentProvider = state.settings.routingProvider;
+      const routingProvider =
+        currentProvider === "ors" && !capabilities.openRouteService && capabilities.valhalla
+          ? "valhalla"
+          : currentProvider === "valhalla" && !capabilities.valhalla && capabilities.openRouteService
+            ? "ors"
+            : currentProvider;
+
+      return {
+        settings: {
+          ...state.settings,
+          routingProvider,
+        },
+        status: {
+          ...state.status,
+          apiStatus: nextApiHealth.status,
+          apiCapabilities: capabilities,
+          apiMessage: nextApiHealth.message,
+        },
+      };
+    });
   },
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (value) => set({ sidebarOpen: value }),

@@ -1,5 +1,5 @@
-import { Activity, Clock, Database, MapPin, Route } from "lucide-react";
-import { TRANSPORT_LABELS } from "../../constants";
+import { Activity, Clock, Database, MapPin, Route, Server } from "lucide-react";
+import { ROUTING_PROVIDER_LABELS, TRANSPORT_LABELS } from "../../constants";
 import { formatRelativeTimestamp } from "../../lib/utils";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import { Badge } from "../ui/badge";
@@ -12,6 +12,10 @@ export function StatusPills() {
 
   const apiVariant =
     status.apiStatus === "ready" ? "success" : status.apiStatus === "error" ? "danger" : "warning";
+  const providerReady =
+    settings.routingProvider === "valhalla"
+      ? status.apiCapabilities.valhalla
+      : status.apiCapabilities.openRouteService;
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -26,6 +30,10 @@ export function StatusPills() {
       <Badge variant="outline" className="gap-1">
         <Activity className="h-3.5 w-3.5" aria-hidden="true" />
         {TRANSPORT_LABELS[settings.transportMode]}
+      </Badge>
+      <Badge variant={providerReady ? "success" : "warning"} className="gap-1">
+        <Server className="h-3.5 w-3.5" aria-hidden="true" />
+        {ROUTING_PROVIDER_LABELS[settings.routingProvider]}
       </Badge>
       <Badge variant={apiVariant} className="gap-1">
         <Database className="h-3.5 w-3.5" aria-hidden="true" />

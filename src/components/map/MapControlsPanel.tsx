@@ -1,10 +1,13 @@
-import { Bike, Car, Footprints, Layers3 } from "lucide-react";
+import { Bike, Car, Footprints, Layers3, Server } from "lucide-react";
 import {
   ISOCHRONE_MODE_LABELS,
   ISOCHRONE_PRESET_LABELS,
   LABEL_DENSITY_LABELS,
   MOBILITY_MODE_ORDER,
   MOBILITY_MODES,
+  ROUTING_PROVIDER_DESCRIPTIONS,
+  ROUTING_PROVIDER_LABELS,
+  ROUTING_PROVIDER_ORDER,
   TIME_OPTIONS,
   TRANSPORT_DESCRIPTIONS,
   TRANSPORT_LABELS,
@@ -14,6 +17,7 @@ import type {
   IsochronePreset,
   LabelDensity,
   MobilityMode,
+  RoutingProvider,
   TransportMode,
 } from "../../types";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
@@ -31,9 +35,11 @@ const transportIcons: Record<TransportMode, typeof Car> = {
 
 export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
   const settings = useMapIsoStore((state) => state.settings);
+  const status = useMapIsoStore((state) => state.status);
   const setIsochroneMode = useMapIsoStore((state) => state.setIsochroneMode);
   const setPreset = useMapIsoStore((state) => state.setPreset);
   const setTransportMode = useMapIsoStore((state) => state.setTransportMode);
+  const setRoutingProvider = useMapIsoStore((state) => state.setRoutingProvider);
   const setMobilityMode = useMapIsoStore((state) => state.setMobilityMode);
   const setTimeBuckets = useMapIsoStore((state) => state.setTimeBuckets);
   const setTimeMinutes = useMapIsoStore((state) => state.setTimeMinutes);
@@ -72,6 +78,42 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
               {ISOCHRONE_PRESET_LABELS[preset]}
             </Button>
           ))}
+        </div>
+
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+            <Server className="h-3.5 w-3.5" aria-hidden="true" />
+            Routing provider
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {ROUTING_PROVIDER_ORDER.map((provider: RoutingProvider) => {
+              const selected = settings.routingProvider === provider;
+              const available =
+                provider === "valhalla"
+                  ? status.apiCapabilities.valhalla
+                  : status.apiCapabilities.openRouteService;
+              const disabled = provider === "valhalla" && !available;
+
+              return (
+                <Button
+                  key={provider}
+                  type="button"
+                  variant={selected ? "primary" : "secondary"}
+                  size="sm"
+                  title={
+                    disabled
+                      ? "Start local Valhalla and set VALHALLA_BASE_URL to enable this provider."
+                      : ROUTING_PROVIDER_DESCRIPTIONS[provider]
+                  }
+                  onClick={() => setRoutingProvider(provider)}
+                  disabled={disabled}
+                  aria-label={`Use ${ROUTING_PROVIDER_LABELS[provider]} routing`}
+                >
+                  {ROUTING_PROVIDER_LABELS[provider]}
+                </Button>
+              );
+            })}
+          </div>
         </div>
 
         <div>

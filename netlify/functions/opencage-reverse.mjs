@@ -1,3 +1,5 @@
+import { getConfiguredSecret } from "./_secrets.mjs";
+
 const OPENCAGE_URL = "https://api.opencagedata.com/geocode/v1/json";
 
 const corsHeaders = {
@@ -40,7 +42,7 @@ export async function handler(event) {
     return json(405, { message: "OpenCage reverse geocoding only accepts GET requests." });
   }
 
-  const apiKey = process.env.OPENCAGE_API_KEY?.trim();
+  const apiKey = getConfiguredSecret("OPENCAGE_API_KEY");
 
   if (!apiKey) {
     return json(503, {

@@ -78,8 +78,12 @@ function FloatingGenerateButton() {
   const status = useMapIsoStore((state) => state.status);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
   const selectedMode = MOBILITY_MODES[settings.mobilityMode];
+  const routingReady =
+    settings.routingProvider === "valhalla"
+      ? status.apiCapabilities.valhalla
+      : status.apiCapabilities.openRouteService;
   const disabled =
-    isGeneratingIsochrones || points.length === 0 || !status.apiCapabilities.openRouteService;
+    isGeneratingIsochrones || points.length === 0 || !routingReady;
 
   return (
     <Button
@@ -96,7 +100,7 @@ function FloatingGenerateButton() {
       ) : (
         <>
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          {status.apiCapabilities.openRouteService ? "Generate" : "Routing API required"}
+          {routingReady ? "Generate" : "Routing API required"}
         </>
       )}
     </Button>

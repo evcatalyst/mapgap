@@ -4,6 +4,7 @@ import type {
   LabelDensity,
   MobilityMode,
   MobilityModeConfig,
+  RoutingProvider,
   TransportMode,
 } from "./types";
 
@@ -48,6 +49,18 @@ export const TRANSPORT_DESCRIPTIONS: Record<TransportMode, string> = {
   "cycling-regular": "Regular cycling travel areas",
   "foot-walking": "Pedestrian travel areas",
 };
+
+export const ROUTING_PROVIDER_LABELS: Record<RoutingProvider, string> = {
+  ors: "ORS",
+  valhalla: "Valhalla beta",
+};
+
+export const ROUTING_PROVIDER_DESCRIPTIONS: Record<RoutingProvider, string> = {
+  ors: "OpenRouteService is the production-safe default provider.",
+  valhalla: "Valhalla beta uses local hill-aware costing when the local service is available.",
+};
+
+export const ROUTING_PROVIDER_ORDER: RoutingProvider[] = ["ors", "valhalla"];
 
 export const MOBILITY_MODES: Record<MobilityMode, MobilityModeConfig> = {
   walk: {

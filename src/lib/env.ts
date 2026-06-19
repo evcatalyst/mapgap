@@ -8,6 +8,7 @@ export type ApiHealth = {
 
 const DEFAULT_CAPABILITIES: ApiCapabilities = {
   openRouteService: false,
+  valhalla: false,
   openCage: false,
 };
 
@@ -16,7 +17,7 @@ function normalizeApiStatus(value: unknown, capabilities: ApiCapabilities): ApiS
     return value;
   }
 
-  return capabilities.openRouteService && capabilities.openCage ? "ready" : "degraded";
+  return capabilities.openRouteService || capabilities.valhalla ? "ready" : "degraded";
 }
 
 export function getInitialApiHealth(): ApiHealth {
@@ -42,11 +43,13 @@ export async function fetchApiHealth(): Promise<ApiHealth> {
     status?: unknown;
     message?: unknown;
     openRouteService?: unknown;
+    valhalla?: unknown;
     openCage?: unknown;
   };
 
   const capabilities = {
     openRouteService: Boolean(data.openRouteService),
+    valhalla: Boolean(data.valhalla),
     openCage: Boolean(data.openCage),
   };
 

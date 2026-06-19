@@ -7,6 +7,8 @@ export type LatLng = {
 
 export type TransportMode = "driving-car" | "cycling-regular" | "foot-walking";
 
+export type RoutingProvider = "ors" | "valhalla";
+
 export type MobilityMode = "walk" | "bike" | "stroller" | "senior";
 
 export type IsochroneMode = "unified" | "individual" | "overlap";
@@ -27,6 +29,7 @@ export type ApiStatus = "unknown" | "ready" | "degraded" | "error";
 
 export type ApiCapabilities = {
   openRouteService: boolean;
+  valhalla: boolean;
   openCage: boolean;
 };
 
@@ -55,6 +58,7 @@ export type IsochroneFeature = Feature<Polygon | MultiPolygon, {
   effortScore: number;
   mobilityMode: MobilityMode;
   transportMode: TransportMode;
+  routingProvider: RoutingProvider;
   isochroneMode: IsochroneMode;
 }>;
 
@@ -74,6 +78,7 @@ export type PointsFeatureCollection = {
 export type AppSettings = {
   timeMinutes: number;
   transportMode: TransportMode;
+  routingProvider: RoutingProvider;
   mobilityMode: MobilityMode;
   viewMode: ViewMode;
   isochroneMode: IsochroneMode;

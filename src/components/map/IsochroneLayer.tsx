@@ -1,6 +1,6 @@
 import { GeoJSON, Popup } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
-import { MOBILITY_MODES } from "../../constants";
+import { MOBILITY_MODES, ROUTING_PROVIDER_LABELS } from "../../constants";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import type { IsochroneFeature } from "../../types";
 
@@ -40,7 +40,10 @@ export function IsochroneLayer({ features }: { features: IsochroneFeature[] }) {
               <div className="space-y-1 text-sm">
                 <div className="font-semibold">{feature.properties.pointName}</div>
                 <div>{feature.properties.bucketMinutes} minute network ring</div>
-                <div>{feature.properties.adjustedMinutes} minute effort-adjusted request</div>
+                <div>
+                  {ROUTING_PROVIDER_LABELS[feature.properties.routingProvider]} routing,
+                  terrain effort estimate {feature.properties.adjustedMinutes} min
+                </div>
                 {settings.isochroneMode === "overlap" && (
                   <div className="text-neutral-600">
                     Blended areas mean shared access from multiple points, not faster travel.

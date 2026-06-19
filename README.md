@@ -21,6 +21,7 @@ Fill `.env.local` with server-side Netlify function keys:
 ```bash
 OPENROUTE_SERVICE_API_KEY=...
 OPENCAGE_API_KEY=...
+VALHALLA_BASE_URL=http://localhost:8002
 ```
 
 `npm run dev` starts Netlify Dev so `/api/*` functions work locally.
@@ -38,9 +39,40 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
+## Routing Providers
+
+MapGap supports two routing providers behind the same `/api/routing/isochrones`
+proxy.
+
+- `ORS`: production-safe default using `OPENROUTE_SERVICE_API_KEY`.
+- `Valhalla beta`: local hill-aware routing using `VALHALLA_BASE_URL`.
+
+Valhalla is disabled in the UI until `/api/health` can reach the configured
+service. To run a local Niskayuna/Capital Region graph:
+
+```bash
+node scripts/valhalla/resolve-geofabrik-env.mjs capital-region
+docker compose --env-file scripts/valhalla/.resolved-capital-region.env -f docker-compose.valhalla.yml up
+```
+
+For Jersey City/NYC comparison work:
+
+```bash
+node scripts/valhalla/resolve-geofabrik-env.mjs jersey-city-nyc
+docker compose --env-file scripts/valhalla/.resolved-jersey-city-nyc.env -f docker-compose.valhalla.yml up
+```
+
+See `scripts/valhalla/README.md` for validation and rebuild notes.
+
 ## Deployment
 
 MapGap deploys to Netlify from GitHub Actions.
+
+Current manually deployed Netlify site:
+
+```text
+https://mapgap-776.netlify.app
+```
 
 Required GitHub repository secrets:
 
@@ -54,7 +86,13 @@ Required Netlify site environment variables:
 ```bash
 OPENROUTE_SERVICE_API_KEY
 OPENCAGE_API_KEY
+VALHALLA_BASE_URL
 ```
+
+`VALHALLA_BASE_URL` is optional for production until the beta provider is hosted.
+Do not set it to `localhost` in Netlify; Netlify Functions need a public or private-network
+URL that is reachable from Netlify's runtime. If neither ORS nor hosted Valhalla is
+configured, the public app still loads but heatmap generation is disabled.
 
 Recommended branch protection for `main`:
 

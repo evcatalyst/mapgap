@@ -1,0 +1,19 @@
+services:
+  valhalla:
+    image: ${VALHALLA_IMAGE:-ghcr.io/gis-ops/docker-valhalla/valhalla:latest}
+    container_name: mapgap-valhalla
+    ports:
+      - "${VALHALLA_PORT:-8002}:8002"
+    volumes:
+      - ./valhalla-data:/custom_files
+    environment:
+      tile_urls: ${VALHALLA_TILE_URLS:-https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf}
+      use_tiles_ignore_pbf: "False"
+      force_rebuild: ${VALHALLA_FORCE_REBUILD:-False}
+      build_tar: ${VALHALLA_BUILD_TAR:-True}
+      build_elevation: "True"
+      build_admins: "True"
+      build_time_zones: "True"
+      update_existing_config: "True"
+      server_threads: ${VALHALLA_SERVER_THREADS:-2}
+    shm_size: "1gb"

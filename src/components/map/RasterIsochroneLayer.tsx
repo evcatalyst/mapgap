@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import L from "leaflet";
 import { useMap } from "react-leaflet";
+import { WATER_BARRIERS, type WaterBarrier } from "../../data/waterBarriers";
 import { getAccessBucketColor } from "../../lib/accessHeat";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import type { IsochroneFeature } from "../../types";
@@ -144,6 +145,53 @@ function eraseMask(
   ctx.globalCompositeOperation = "destination-out";
   ctx.drawImage(colorScratch.canvas, 0, 0, cssWidth, cssHeight);
   ctx.restore();
+}
+
+function eraseWaterBarriers(
+  ctx: CanvasRenderingContext2D,
+  map: L.Map,
+  topLeft: L.Point,
+) {
+  ctx.save();
+  ctx.globalAlpha = 0.96;
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = "#000";
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  WATER_BARRIERS.forEach((barrier) => {
+    ctx.beginPath();
+    barrier.coordinates.forEach(([lng, lat], index) => {
+      const point = map.latLngToLayerPoint([lat, lng]).subtract(topLeft);
+
+      if (index === 0) {
+        ctx.moveTo(point.x, point.y);
+        return;
+      }
+
+      ctx.lineTo(point.x, point.y);
+    });
+
+    if (barrier.kind === "corridor") {
+      ctx.lineWidth = getBarrierWidth(barrier, map);
+      ctx.stroke();
+      return;
+    }
+
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function getBarrierWidth(barrier: WaterBarrier, map: L.Map) {
+  const baseWidth = barrier.widthPx || 32;
+  const zoomScale = Math.pow(2, map.getZoom() - 13);
+  const minWidth = barrier.minWidthPx || 12;
+  const maxWidth = barrier.maxWidthPx || 128;
+
+  return Math.min(maxWidth, Math.max(minWidth, baseWidth * zoomScale));
 }
 
 function getBuckets(features: IsochroneFeature[]) {
@@ -301,6 +349,8 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
           theme === "dark" ? "screen" : "multiply",
         );
       }
+
+      eraseWaterBarriers(ctx, map, topLeft);
     };
 
     redraw();

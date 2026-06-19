@@ -1,21 +1,48 @@
+import { hasConfiguredSecret } from "./_secrets.mjs";
+
 const jsonHeaders = {
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
 };
 
-function hasSecret(name) {
-  const value = process.env[name]?.trim();
-  return Boolean(value);
+function getValhallaBaseUrl() {
+  return process.env.VALHALLA_BASE_URL?.trim().replace(/\/+$/, "");
+}
+
+async function checkValhalla() {
+  const baseUrl = getValhallaBaseUrl();
+
+  if (!baseUrl) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/status`, {
+      signal: AbortSignal.timeout(2500),
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function handler() {
-  const openRouteService = hasSecret("OPENROUTE_SERVICE_API_KEY");
-  const openCage = hasSecret("OPENCAGE_API_KEY");
-  const status = openRouteService && openCage ? "ready" : "degraded";
+  const openRouteService = hasConfiguredSecret("OPENROUTE_SERVICE_API_KEY");
+  const openCage = hasConfiguredSecret("OPENCAGE_API_KEY");
+  const valhalla = await checkValhalla();
+  const hasRouting = openRouteService || valhalla;
+  const status = hasRouting ? "ready" : "degraded";
   const message =
     status === "ready"
-      ? "Routing and geocoding keys are configured."
-      : "One or more API keys are missing in the Netlify environment.";
+      ? [
+          "At least one routing provider is available.",
+          openCage ? "Geocoding is configured." : "Reverse geocoding is disabled until OPENCAGE_API_KEY is set.",
+        ].join(" ")
+      : "One or more routing/geocoding services are unavailable in the Netlify environment.";
 
   return {
     statusCode: 200,
@@ -24,6 +51,7 @@ export async function handler() {
       status,
       message,
       openRouteService,
+      valhalla,
       openCage,
     }),
   };

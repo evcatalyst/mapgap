@@ -9,6 +9,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/routing/isochrones"
+  to = "/.netlify/functions/routing-isochrones"
+  status = 200
+
+[[redirects]]
   from = "/api/openrouteservice/*"
   to = "/.netlify/functions/openrouteservice?path=:splat"
   status = 200

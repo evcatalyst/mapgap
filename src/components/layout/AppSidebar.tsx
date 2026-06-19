@@ -26,8 +26,12 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   const points = useMapIsoStore((state) => state.points);
   const isochrones = useMapIsoStore((state) => state.isochrones);
   const status = useMapIsoStore((state) => state.status);
+  const settings = useMapIsoStore((state) => state.settings);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
-  const apiReady = status.apiCapabilities.openRouteService;
+  const routingReady =
+    settings.routingProvider === "valhalla"
+      ? status.apiCapabilities.valhalla
+      : status.apiCapabilities.openRouteService;
 
   if (!sidebarOpen && !mobile) {
     return (
@@ -97,12 +101,12 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
           </Button>
           <Button
             type="button"
-            variant={apiReady && points.length > 0 ? "primary" : "secondary"}
+            variant={routingReady && points.length > 0 ? "primary" : "secondary"}
             onClick={generateIsochrones}
-            disabled={!apiReady || points.length === 0 || isGeneratingIsochrones}
+            disabled={!routingReady || points.length === 0 || isGeneratingIsochrones}
           >
             <Route className="h-4 w-4" aria-hidden="true" />
-              {!apiReady ? "Routing API required" : "Generate access heatmap"}
+            {!routingReady ? "Routing API required" : "Generate access heatmap"}
           </Button>
         </div>
 
