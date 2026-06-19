@@ -12,7 +12,7 @@ export function AdminShell() {
   const layoutMode = useMapIsoStore((state) => state.settings.layoutMode);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-stone-50 text-neutral-950 dark:bg-neutral-950 dark:text-white">
+    <div className="flex h-screen w-full overflow-hidden bg-stone-50 text-neutral-950 dark:bg-neutral-950 dark:text-white">
       <AppSidebar />
       <MobileDrawer />
       <main className="flex min-w-0 flex-1 flex-col">
@@ -20,7 +20,7 @@ export function AdminShell() {
         <FirstRunCards />
         <div
           className={cn(
-            "min-h-0 flex-1",
+            "min-h-0 min-w-0 flex-1",
             layoutMode === "split" && "grid grid-rows-[minmax(360px,1fr)_320px]",
             layoutMode === "map-first" && "grid grid-rows-[minmax(420px,1fr)_280px]",
             layoutMode === "table-first" && "grid grid-rows-[320px_minmax(360px,1fr)]",

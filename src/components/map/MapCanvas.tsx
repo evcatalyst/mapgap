@@ -80,6 +80,7 @@ function FloatingGenerateButton() {
   const points = useMapIsoStore((state) => state.points);
   const settings = useMapIsoStore((state) => state.settings);
   const status = useMapIsoStore((state) => state.status);
+  const setSidebarOpen = useMapIsoStore((state) => state.setSidebarOpen);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
   const selectedMode = MOBILITY_MODES[settings.mobilityMode];
   const routingReady =
@@ -87,18 +88,32 @@ function FloatingGenerateButton() {
       ? status.apiCapabilities.valhalla
       : status.apiCapabilities.openRouteService;
   const valhallaAccessReady = isValhallaAccessReady(status, settings);
-  const disabled =
-    isGeneratingIsochrones || points.length === 0 || !routingReady || !valhallaAccessReady;
+  const needsValhallaAccess = routingReady && !valhallaAccessReady;
+  const disabled = isGeneratingIsochrones || points.length === 0 || !routingReady;
+  const canGenerate = !disabled && !needsValhallaAccess;
+
+  const handleClick = () => {
+    if (needsValhallaAccess) {
+      setSidebarOpen(true);
+      return;
+    }
+
+    generateIsochrones();
+  };
 
   return (
     <Button
       type="button"
-      variant={disabled ? "secondary" : "primary"}
-      className="absolute bottom-4 right-4 z-[500] min-h-12 shadow-soft"
-      style={disabled ? undefined : { backgroundColor: selectedMode.color }}
-      onClick={generateIsochrones}
+      variant={canGenerate ? "primary" : "secondary"}
+      className="fixed bottom-4 left-4 right-4 z-30 min-h-12 max-w-[calc(100vw-2rem)] shadow-soft lg:absolute lg:left-auto lg:right-4 lg:z-[500] lg:w-auto"
+      style={canGenerate ? { backgroundColor: selectedMode.color } : undefined}
+      onClick={handleClick}
       disabled={disabled}
-      aria-label="Generate effort-adjusted isochrones"
+      aria-label={
+        needsValhallaAccess
+          ? "Open Valhalla access secret controls to generate isochrones"
+          : "Generate effort-adjusted isochrones"
+      }
     >
       {isGeneratingIsochrones ? (
         <LoadingSpinner label="Finding gaps" />
@@ -107,7 +122,7 @@ function FloatingGenerateButton() {
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           {!routingReady
             ? "Routing API required"
-            : !valhallaAccessReady
+            : needsValhallaAccess
               ? getValhallaAccessRequiredMessage()
               : "Generate"}
         </>
@@ -142,7 +157,7 @@ export function MapCanvas() {
   return (
     <section
       id="mapiso-capture"
-      className="relative h-full min-h-[420px] overflow-hidden bg-neutral-100 dark:bg-neutral-950"
+      className="relative h-full min-h-[420px] min-w-0 overflow-hidden bg-neutral-100 dark:bg-neutral-950"
       aria-label="Interactive MapGap access map. Click or tap the map to add a point."
     >
       <MapContainer

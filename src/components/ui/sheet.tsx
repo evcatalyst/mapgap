@@ -11,10 +11,10 @@ export function SheetContent({
 }: DialogPrimitive.DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-neutral-950/45 backdrop-blur-sm" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-[1100] bg-neutral-950/45 backdrop-blur-sm" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-50 h-[86vh] rounded-t-2xl border-t border-neutral-200 bg-white shadow-soft outline-none dark:border-neutral-800 dark:bg-neutral-950 md:left-auto md:top-0 md:h-full md:w-[420px] md:rounded-none md:border-l md:border-t-0",
+          "fixed bottom-0 left-0 right-0 z-[1110] h-[86vh] rounded-t-2xl border-t border-neutral-200 bg-white shadow-soft outline-none dark:border-neutral-800 dark:bg-neutral-950 md:left-auto md:top-0 md:h-full md:w-[420px] md:rounded-none md:border-l md:border-t-0",
           className,
         )}
         aria-describedby={undefined}
