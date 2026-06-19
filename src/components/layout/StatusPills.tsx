@@ -1,5 +1,6 @@
 import { Activity, Clock, Database, MapPin, Route, Server } from "lucide-react";
 import { ROUTING_PROVIDER_LABELS, TRANSPORT_LABELS } from "../../constants";
+import { isRoutingProviderReady } from "../../lib/routingStatus";
 import { formatRelativeTimestamp } from "../../lib/utils";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import { Badge } from "../ui/badge";
@@ -12,10 +13,7 @@ export function StatusPills() {
 
   const apiVariant =
     status.apiStatus === "ready" ? "success" : status.apiStatus === "error" ? "danger" : "warning";
-  const providerReady =
-    settings.routingProvider === "valhalla"
-      ? status.apiCapabilities.valhalla
-      : status.apiCapabilities.openRouteService;
+  const providerReady = isRoutingProviderReady(status, settings.routingProvider);
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">

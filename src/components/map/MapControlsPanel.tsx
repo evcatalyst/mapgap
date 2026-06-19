@@ -21,6 +21,10 @@ import type {
   TransportMode,
 } from "../../types";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
+import {
+  getRoutingProviderUnavailableMessage,
+  isRoutingProviderReady,
+} from "../../lib/routingStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Select } from "../ui/select";
 import { Slider } from "../ui/slider";
@@ -88,11 +92,7 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
           <div className="grid grid-cols-2 gap-2">
             {ROUTING_PROVIDER_ORDER.map((provider: RoutingProvider) => {
               const selected = settings.routingProvider === provider;
-              const available =
-                provider === "valhalla"
-                  ? status.apiCapabilities.valhalla
-                  : status.apiCapabilities.openRouteService;
-              const disabled = provider === "valhalla" && !available;
+              const available = isRoutingProviderReady(status, provider);
 
               return (
                 <Button
@@ -101,12 +101,11 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
                   variant={selected ? "primary" : "secondary"}
                   size="sm"
                   title={
-                    disabled
-                      ? "Start local Valhalla and set VALHALLA_BASE_URL to enable this provider."
+                    !available
+                      ? getRoutingProviderUnavailableMessage(provider)
                       : ROUTING_PROVIDER_DESCRIPTIONS[provider]
                   }
                   onClick={() => setRoutingProvider(provider)}
-                  disabled={disabled}
                   aria-label={`Use ${ROUTING_PROVIDER_LABELS[provider]} routing`}
                 >
                   {ROUTING_PROVIDER_LABELS[provider]}

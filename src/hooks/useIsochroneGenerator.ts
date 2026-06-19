@@ -2,6 +2,10 @@ import toast from "react-hot-toast";
 import { ROUTING_PROVIDER_LABELS } from "../constants";
 import { fetchIsochrones } from "../lib/api";
 import { debugError } from "../lib/debug";
+import {
+  getRoutingProviderUnavailableMessage,
+  isRoutingProviderReady,
+} from "../lib/routingStatus";
 import { useMapIsoStore } from "../store/useMapIsoStore";
 
 export function useIsochroneGenerator() {
@@ -21,17 +25,11 @@ export function useIsochroneGenerator() {
       return;
     }
 
-    const routingAvailable =
-      settings.routingProvider === "valhalla"
-        ? status.apiCapabilities.valhalla
-        : status.apiCapabilities.openRouteService;
+    const routingAvailable = isRoutingProviderReady(status, settings.routingProvider);
     const providerLabel = ROUTING_PROVIDER_LABELS[settings.routingProvider];
 
     if (!routingAvailable) {
-      const message =
-        settings.routingProvider === "valhalla"
-          ? "Valhalla is not available. Start local Valhalla and set VALHALLA_BASE_URL, or switch back to ORS."
-          : "OpenRouteService proxy is not configured. Add OPENROUTE_SERVICE_API_KEY in Netlify.";
+      const message = getRoutingProviderUnavailableMessage(settings.routingProvider);
       setGenerationError(message);
       refreshApiStatus();
       toast.error(message);

@@ -7,6 +7,11 @@ import {
   Upload,
 } from "lucide-react";
 import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
+import {
+  getRoutingSetupMessage,
+  isAnyRoutingProviderReady,
+  isRoutingProviderReady,
+} from "../../lib/routingStatus";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -28,10 +33,8 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   const status = useMapIsoStore((state) => state.status);
   const settings = useMapIsoStore((state) => state.settings);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
-  const routingReady =
-    settings.routingProvider === "valhalla"
-      ? status.apiCapabilities.valhalla
-      : status.apiCapabilities.openRouteService;
+  const routingReady = isRoutingProviderReady(status, settings.routingProvider);
+  const anyRoutingReady = isAnyRoutingProviderReady(status);
 
   if (!sidebarOpen && !mobile) {
     return (
@@ -86,6 +89,11 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
             >
               {status.apiMessage}
             </Badge>
+            {!anyRoutingReady && (
+              <Badge variant="warning" className="h-auto w-full justify-start py-2">
+                {getRoutingSetupMessage(status)}
+              </Badge>
+            )}
             {status.generationError && (
               <Badge variant="danger" className="h-auto w-full justify-start py-2">
                 {status.generationError}
@@ -106,7 +114,7 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
             disabled={!routingReady || points.length === 0 || isGeneratingIsochrones}
           >
             <Route className="h-4 w-4" aria-hidden="true" />
-            {!routingReady ? "Routing API required" : "Generate access heatmap"}
+            {!routingReady ? "Connect routing provider" : "Generate access heatmap"}
           </Button>
         </div>
 

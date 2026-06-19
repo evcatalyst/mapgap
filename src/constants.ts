@@ -57,7 +57,7 @@ export const ROUTING_PROVIDER_LABELS: Record<RoutingProvider, string> = {
 
 export const ROUTING_PROVIDER_DESCRIPTIONS: Record<RoutingProvider, string> = {
   ors: "OpenRouteService is the production-safe default provider.",
-  valhalla: "Valhalla beta uses local hill-aware costing when the local service is available.",
+  valhalla: "Valhalla beta uses hosted or local hill-aware costing when configured.",
 };
 
 export const ROUTING_PROVIDER_ORDER: RoutingProvider[] = ["ors", "valhalla"];
