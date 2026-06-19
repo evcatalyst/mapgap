@@ -11,7 +11,7 @@
     "preview": "vite preview"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.16",
