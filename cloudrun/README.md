@@ -18,7 +18,7 @@ Build context: /
 Use these service settings:
 
 ```text
-Container port: 8002
+Container port: 8002 or 8082
 Memory: 4 GiB minimum
 CPU: 2
 Request timeout: 300 seconds
@@ -31,6 +31,11 @@ Authentication: Allow unauthenticated
 Add the environment variables from `cloudrun/valhalla-env.yaml` to the Cloud Run
 service. The root `Dockerfile` also sets the same defaults, but Cloud Run service
 env vars are easier to change without editing the image.
+
+The Valhalla image normally listens on `8002`, but the MapGap Dockerfile installs
+a Cloud Run entrypoint that rewrites Valhalla's generated config to listen on
+Cloud Run's injected `PORT` value. This means existing services configured for
+`8082` can still start, while local Docker and Compose runs keep using `8002`.
 
 `cloudrun/valhalla-service.yaml` is a template for the same runtime settings.
 Replace the placeholder image path before applying it with `gcloud run services
@@ -96,9 +101,10 @@ regex `^main$`, make sure the `Dockerfile` has been merged to `main`. Before
 that merge, either merge the Cloud Run config PR or temporarily point the trigger
 at the branch that contains the Dockerfile.
 
-If Cloud Run reports that the container failed to listen on `PORT=8082`, edit the
-service and set the container port to `8002`. The Valhalla image listens on
-`8002`; Cloud Run's configured container port must match that internal port.
+If Cloud Run reports that the container failed to listen on `PORT=8082`, confirm
+the service is building a commit that includes
+`cloudrun/valhalla-cloud-run-entrypoint.sh`. That entrypoint makes Valhalla
+listen on Cloud Run's injected `PORT` value.
 
 If Cloud Run logs `sudo: /usr/bin/sudo must be owned by uid 0 and have the
 setuid bit set`, make sure the service is building the root `Dockerfile` from a
