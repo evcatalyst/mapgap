@@ -71,7 +71,7 @@ MapGap deploys to Netlify from GitHub Actions.
 Current manually deployed Netlify site:
 
 ```text
-https://mapgap-776.netlify.app
+https://mapgap-access.netlify.app
 ```
 
 Required GitHub repository secrets:
