@@ -1,0 +1,43 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: mapgap-valhalla
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "3"
+    spec:
+      containerConcurrency: 10
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/mapgap-valhalla:TAG
+          ports:
+            - name: http1
+              containerPort: 8002
+          env:
+            - name: tile_urls
+              value: "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf"
+            - name: use_tiles_ignore_pbf
+              value: "False"
+            - name: force_rebuild
+              value: "False"
+            - name: build_tar
+              value: "True"
+            - name: build_elevation
+              value: "True"
+            - name: build_admins
+              value: "True"
+            - name: build_time_zones
+              value: "True"
+            - name: update_existing_config
+              value: "True"
+            - name: server_threads
+              value: "2"
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi

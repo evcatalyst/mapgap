@@ -1,0 +1,15 @@
+.git
+.github
+.netlify
+.DS_Store
+
+node_modules
+dist
+coverage
+
+.env
+.env.*
+*.log
+
+valhalla-data
+scripts/valhalla/.resolved-*.env
