@@ -1,19 +1,12 @@
 import { useEffect } from "react";
 import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { LeafletMouseEvent } from "leaflet";
-import { Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
-import { DEFAULT_CENTER, DEFAULT_ZOOM, MOBILITY_MODES } from "../../constants";
-import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
+import { DEFAULT_CENTER, DEFAULT_ZOOM } from "../../constants";
 import { reverseGeocode } from "../../lib/api";
 import { debugError, debugLog } from "../../lib/debug";
-import {
-  getValhallaAccessRequiredMessage,
-  isValhallaAccessReady,
-} from "../../lib/routingStatus";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
-import { Button } from "../ui/button";
-import { LoadingSpinner } from "../LoadingSpinner";
+import { GenerateActionButton } from "./GenerateActionButton";
 import { IsochroneLayer } from "./IsochroneLayer";
 import { LayerLegend } from "./LayerLegend";
 import { PointMarkers } from "./PointMarkers";
@@ -76,61 +69,6 @@ function ResizeOnChange({ sidebarOpen, layoutMode }: { sidebarOpen: boolean; lay
   return null;
 }
 
-function FloatingGenerateButton() {
-  const points = useMapIsoStore((state) => state.points);
-  const settings = useMapIsoStore((state) => state.settings);
-  const status = useMapIsoStore((state) => state.status);
-  const setSidebarOpen = useMapIsoStore((state) => state.setSidebarOpen);
-  const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
-  const selectedMode = MOBILITY_MODES[settings.mobilityMode];
-  const routingReady =
-    settings.routingProvider === "valhalla"
-      ? status.apiCapabilities.valhalla
-      : status.apiCapabilities.openRouteService;
-  const valhallaAccessReady = isValhallaAccessReady(status, settings);
-  const needsValhallaAccess = routingReady && !valhallaAccessReady;
-  const disabled = isGeneratingIsochrones || points.length === 0 || !routingReady;
-  const canGenerate = !disabled && !needsValhallaAccess;
-
-  const handleClick = () => {
-    if (needsValhallaAccess) {
-      setSidebarOpen(true);
-      return;
-    }
-
-    generateIsochrones();
-  };
-
-  return (
-    <Button
-      type="button"
-      variant={canGenerate ? "primary" : "secondary"}
-      className="fixed bottom-4 left-4 right-4 z-30 min-h-12 max-w-[calc(100vw-2rem)] shadow-soft lg:absolute lg:left-auto lg:right-4 lg:z-[500] lg:w-auto"
-      style={canGenerate ? { backgroundColor: selectedMode.color } : undefined}
-      onClick={handleClick}
-      disabled={disabled}
-      aria-label={
-        needsValhallaAccess
-          ? "Open Valhalla access secret controls to generate isochrones"
-          : "Generate effort-adjusted isochrones"
-      }
-    >
-      {isGeneratingIsochrones ? (
-        <LoadingSpinner label="Finding gaps" />
-      ) : (
-        <>
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-          {!routingReady
-            ? "Routing API required"
-            : needsValhallaAccess
-              ? getValhallaAccessRequiredMessage()
-              : "Generate"}
-        </>
-      )}
-    </Button>
-  );
-}
-
 export function MapCanvas() {
   const points = useMapIsoStore((state) => state.points);
   const isochrones = useMapIsoStore((state) => state.isochrones);
@@ -182,7 +120,7 @@ export function MapCanvas() {
         <LayerLegend />
         <TimeRingLegend />
       </div>
-      <FloatingGenerateButton />
+      <GenerateActionButton className="absolute bottom-4 right-4 z-[500] hidden lg:inline-flex" />
     </section>
   );
 }

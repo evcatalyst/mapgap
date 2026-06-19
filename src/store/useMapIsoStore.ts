@@ -149,6 +149,21 @@ const defaultSettings: AppSettings = {
   hasCompletedFirstRun: false,
 };
 
+function getReadyRoutingProvider(
+  provider: RoutingProvider,
+  capabilities: AppStatus["apiCapabilities"],
+) {
+  if (provider === "ors" && !capabilities.openRouteService && capabilities.valhalla) {
+    return "valhalla";
+  }
+
+  if (provider === "valhalla" && !capabilities.valhalla && capabilities.openRouteService) {
+    return "ors";
+  }
+
+  return provider;
+}
+
 export const useMapIsoStore = create<MapIsoState>((set, get) => ({
   points: [
     {
@@ -443,13 +458,23 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
       return;
     }
 
-    set((state) => ({
-      settings: {
+    set((state) => {
+      const nextSettings = {
         ...state.settings,
         ...scenario.settings,
-      },
-      isochrones: [],
-    }));
+      };
+
+      return {
+        settings: {
+          ...nextSettings,
+          routingProvider: getReadyRoutingProvider(
+            nextSettings.routingProvider,
+            state.status.apiCapabilities,
+          ),
+        },
+        isochrones: [],
+      };
+    });
   },
   setLastExported: () => {
     set((state) => ({
@@ -479,18 +504,11 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
 
     set((state) => {
       const capabilities = nextApiHealth.capabilities;
-      const currentProvider = state.settings.routingProvider;
-      const routingProvider =
-        currentProvider === "ors" && !capabilities.openRouteService && capabilities.valhalla
-          ? "valhalla"
-          : currentProvider === "valhalla" && !capabilities.valhalla && capabilities.openRouteService
-            ? "ors"
-            : currentProvider;
 
       return {
         settings: {
           ...state.settings,
-          routingProvider,
+          routingProvider: getReadyRoutingProvider(state.settings.routingProvider, capabilities),
         },
         status: {
           ...state.status,

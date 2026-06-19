@@ -2,6 +2,7 @@ import { Download, FileJson, ImageDown, Menu, Moon, Search, Sun } from "lucide-r
 import toast from "react-hot-toast";
 import { exportCsv, exportGeoJson, exportPng } from "../../lib/exports";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
+import { GenerateActionButton } from "../map/GenerateActionButton";
 import { Button } from "../ui/button";
 import { StatusPills } from "./StatusPills";
 
@@ -115,6 +116,10 @@ export function TopBar() {
         >
           <ThemeIcon className="h-5 w-5" aria-hidden="true" />
         </Button>
+      </div>
+
+      <div className="lg:hidden">
+        <GenerateActionButton label="full" className="w-full justify-center" />
       </div>
     </header>
   );
