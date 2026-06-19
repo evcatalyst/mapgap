@@ -32,12 +32,22 @@ Add the environment variables from `cloudrun/valhalla-env.yaml` to the Cloud Run
 service. The root `Dockerfile` also sets the same defaults, but Cloud Run service
 env vars are easier to change without editing the image.
 
-The Dockerfile prebuilds the New York Valhalla graph during Cloud Build. At
-runtime, Valhalla listens on internal port `8002` and a small MapGap proxy
-listens on Cloud Run's injected `PORT` value. `/status` is public and returns
-proxy health. Routing paths such as `/isochrone` require the
+The Dockerfile downloads the New York OSM extract, clips it to a Capital Region
+bbox around Niskayuna/Schenectady/Albany, and prebuilds that smaller Valhalla
+graph during Cloud Build. At runtime, Valhalla listens on internal port `8002`
+and a small MapGap proxy listens on Cloud Run's injected `PORT` value. `/status`
+is public and returns proxy health. Routing paths such as `/isochrone` require the
 `X-Valhalla-Shared-Secret` header when `VALHALLA_SHARED_SECRET` is set on the
 Cloud Run service.
+
+The build-time defaults can be overridden in Cloud Build if you need a different
+coverage area:
+
+```text
+VALHALLA_TILE_URLS=https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf
+VALHALLA_EXTRACT_BBOX=-74.50,42.35,-73.25,43.25
+VALHALLA_EXTRACT_NAME=capital-region.osm.pbf
+```
 
 To protect the direct Cloud Run URL, set `VALHALLA_SHARED_SECRET` on the Cloud
 Run service to the same value used in Netlify. If it is only set in Netlify, the
@@ -134,4 +144,4 @@ deploy a new revision from the built image.
 The Valhalla image builds tiles under `/custom_files` during Docker build and
 ships the generated `valhalla_tiles.tar` in the image. That keeps Cloud Run
 startup fast and avoids rebuilding tiles on every cold instance. Updating the OSM
-extract means rebuilding the container image.
+extract or bbox means rebuilding the container image.
