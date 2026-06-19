@@ -1,6 +1,6 @@
 services:
   valhalla:
-    image: ${VALHALLA_IMAGE:-ghcr.io/gis-ops/docker-valhalla/valhalla:latest}
+    image: ${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla-scripted:latest}
     container_name: mapgap-valhalla
     ports:
       - "${VALHALLA_PORT:-8002}:8002"

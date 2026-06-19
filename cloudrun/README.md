@@ -94,6 +94,11 @@ If Cloud Run reports that the container failed to listen on `PORT=8082`, edit th
 service and set the container port to `8002`. The Valhalla image listens on
 `8002`; Cloud Run's configured container port must match that internal port.
 
+If Cloud Run logs `sudo: /usr/bin/sudo must be owned by uid 0 and have the
+setuid bit set`, make sure the service is building the root `Dockerfile` from a
+commit that uses `ghcr.io/valhalla/valhalla-scripted:latest`. The older GIS-OPS
+image startup path is not compatible with Cloud Run's setuid restrictions.
+
 If the revision shows the `gcr.io/cloudrun/placeholder` image, that is not the
 Valhalla container. Check the build logs, fix the build or port settings, and
 deploy a new revision from the built image.

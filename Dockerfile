@@ -1,4 +1,4 @@
-ARG VALHALLA_IMAGE=ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+ARG VALHALLA_IMAGE=ghcr.io/valhalla/valhalla-scripted:latest
 FROM ${VALHALLA_IMAGE}
 
 # Cloud Run must be configured to route traffic to this port.
