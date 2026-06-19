@@ -18,7 +18,7 @@ Build context: /
 Use these service settings:
 
 ```text
-Container port: 8002 or 8082
+Container port: 8082
 Memory: 4 GiB minimum
 CPU: 2
 Request timeout: 300 seconds
@@ -32,10 +32,16 @@ Add the environment variables from `cloudrun/valhalla-env.yaml` to the Cloud Run
 service. The root `Dockerfile` also sets the same defaults, but Cloud Run service
 env vars are easier to change without editing the image.
 
-The Valhalla image normally listens on `8002`, but the MapGap Dockerfile installs
-a Cloud Run entrypoint that rewrites Valhalla's generated config to listen on
-Cloud Run's injected `PORT` value. This means existing services configured for
-`8082` can still start, while local Docker and Compose runs keep using `8002`.
+The Dockerfile prebuilds the New York Valhalla graph during Cloud Build. At
+runtime, Valhalla listens on internal port `8002` and a small MapGap proxy
+listens on Cloud Run's injected `PORT` value. `/status` is public and returns
+proxy health. Routing paths such as `/isochrone` require the
+`X-Valhalla-Shared-Secret` header when `VALHALLA_SHARED_SECRET` is set on the
+Cloud Run service.
+
+To protect the direct Cloud Run URL, set `VALHALLA_SHARED_SECRET` on the Cloud
+Run service to the same value used in Netlify. If it is only set in Netlify, the
+MapGap proxy function is protected, but the Cloud Run URL itself remains public.
 
 `cloudrun/valhalla-service.yaml` is a template for the same runtime settings.
 Replace the placeholder image path before applying it with `gcloud run services
@@ -50,7 +56,7 @@ settings with:
 gcloud run deploy mapgap-valhalla \
   --image REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/mapgap-valhalla:TAG \
   --region REGION \
-  --port 8002 \
+  --port 8082 \
   --memory 4Gi \
   --cpu 2 \
   --timeout 300 \
@@ -78,14 +84,21 @@ Netlify functions. `VALHALLA_SHARED_SECRET` is checked by the Netlify routing
 function before it proxies hosted Valhalla requests. Users enter this same value
 in MapGap when `Valhalla beta` is selected.
 
-This protects the Netlify proxy path. If the Cloud Run service allows
-unauthenticated requests, anyone with the Cloud Run URL can still call Valhalla
-directly.
+Netlify also forwards the shared secret to Cloud Run as
+`X-Valhalla-Shared-Secret`. Set the same `VALHALLA_SHARED_SECRET` value on Cloud
+Run to protect direct Cloud Run `/isochrone` requests.
 
 Validate the service before updating Netlify:
 
 ```bash
+curl -s https://YOUR-CLOUD-RUN-SERVICE-URL/status
+```
+
+If `VALHALLA_SHARED_SECRET` is set on Cloud Run, validate routing with:
+
+```bash
 curl -s https://YOUR-CLOUD-RUN-SERVICE-URL/isochrone \
+  -H 'X-Valhalla-Shared-Secret: YOUR_SHARED_SECRET' \
   -H 'Content-Type: application/json' \
   --data '{"locations":[{"lat":42.7798,"lon":-73.8457}],"costing":"pedestrian","contours":[{"time":1}],"polygons":false}'
 ```
@@ -103,8 +116,9 @@ at the branch that contains the Dockerfile.
 
 If Cloud Run reports that the container failed to listen on `PORT=8082`, confirm
 the service is building a commit that includes
-`cloudrun/valhalla-cloud-run-entrypoint.sh`. That entrypoint makes Valhalla
-listen on Cloud Run's injected `PORT` value.
+`cloudrun/valhalla-cloud-run-entrypoint.sh` and
+`cloudrun/valhalla-secret-proxy.py`. The proxy listens on Cloud Run's injected
+`PORT` value while Valhalla stays on internal port `8002`.
 
 If Cloud Run logs `sudo: /usr/bin/sudo must be owned by uid 0 and have the
 setuid bit set`, make sure the service is building the root `Dockerfile` from a
@@ -117,7 +131,7 @@ deploy a new revision from the built image.
 
 ## Operational Note
 
-The Valhalla image builds tiles under `/custom_files` on startup. Cloud Run's
-container filesystem is ephemeral, so a new revision or cold instance can rebuild
-tiles. This is acceptable for a small beta graph, but a production deployment
-should prebuild tiles into the image or use a persistent storage strategy.
+The Valhalla image builds tiles under `/custom_files` during Docker build and
+ships the generated `valhalla_tiles.tar` in the image. That keeps Cloud Run
+startup fast and avoids rebuilding tiles on every cold instance. Updating the OSM
+extract means rebuilding the container image.

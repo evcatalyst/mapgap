@@ -1,4 +1,4 @@
-import { hasConfiguredSecret } from "./_secrets.mjs";
+import { getConfiguredSecret, hasConfiguredSecret } from "./_secrets.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json",
@@ -6,17 +6,20 @@ const jsonHeaders = {
 };
 
 const VALHALLA_HEALTH_TIMEOUT_MS = 4000;
+const VALHALLA_SECRET_HEADER = "X-Valhalla-Shared-Secret";
 
 function getValhallaBaseUrl() {
   return process.env.VALHALLA_BASE_URL?.trim().replace(/\/+$/, "");
 }
 
 async function fetchValhallaJson(url, options = {}) {
+  const sharedSecret = getConfiguredSecret("VALHALLA_SHARED_SECRET");
   const response = await fetch(url, {
     ...options,
     signal: AbortSignal.timeout(VALHALLA_HEALTH_TIMEOUT_MS),
     headers: {
       Accept: "application/json",
+      ...(sharedSecret ? { [VALHALLA_SECRET_HEADER]: sharedSecret } : {}),
       ...options.headers,
     },
   });
