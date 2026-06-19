@@ -1,4 +1,4 @@
-import { Bike, Car, Footprints, Layers3, Server } from "lucide-react";
+import { Bike, Car, Footprints, KeyRound, Layers3, Server } from "lucide-react";
 import {
   ISOCHRONE_MODE_LABELS,
   ISOCHRONE_PRESET_LABELS,
@@ -30,6 +30,7 @@ import { Select } from "../ui/select";
 import { Slider } from "../ui/slider";
 import { Tabs } from "../ui/tabs";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 
 const transportIcons: Record<TransportMode, typeof Car> = {
   "driving-car": Car,
@@ -44,6 +45,7 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
   const setPreset = useMapIsoStore((state) => state.setPreset);
   const setTransportMode = useMapIsoStore((state) => state.setTransportMode);
   const setRoutingProvider = useMapIsoStore((state) => state.setRoutingProvider);
+  const setValhallaAccessSecret = useMapIsoStore((state) => state.setValhallaAccessSecret);
   const setMobilityMode = useMapIsoStore((state) => state.setMobilityMode);
   const setTimeBuckets = useMapIsoStore((state) => state.setTimeBuckets);
   const setTimeMinutes = useMapIsoStore((state) => state.setTimeMinutes);
@@ -114,6 +116,22 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
             })}
           </div>
         </div>
+
+        {settings.routingProvider === "valhalla" && status.apiCapabilities.valhallaRequiresSecret && (
+          <label className="block">
+            <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+              <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+              Valhalla access secret
+            </span>
+            <Input
+              type="password"
+              value={settings.valhallaAccessSecret}
+              onChange={(event) => setValhallaAccessSecret(event.target.value)}
+              placeholder="Enter shared secret"
+              autoComplete="off"
+            />
+          </label>
+        )}
 
         <div>
           <p className="mb-2 block text-xs font-medium text-neutral-500">Access profile</p>

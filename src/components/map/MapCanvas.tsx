@@ -7,6 +7,10 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, MOBILITY_MODES } from "../../constants";
 import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
 import { reverseGeocode } from "../../lib/api";
 import { debugError, debugLog } from "../../lib/debug";
+import {
+  getValhallaAccessRequiredMessage,
+  isValhallaAccessReady,
+} from "../../lib/routingStatus";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import { Button } from "../ui/button";
 import { LoadingSpinner } from "../LoadingSpinner";
@@ -82,8 +86,9 @@ function FloatingGenerateButton() {
     settings.routingProvider === "valhalla"
       ? status.apiCapabilities.valhalla
       : status.apiCapabilities.openRouteService;
+  const valhallaAccessReady = isValhallaAccessReady(status, settings);
   const disabled =
-    isGeneratingIsochrones || points.length === 0 || !routingReady;
+    isGeneratingIsochrones || points.length === 0 || !routingReady || !valhallaAccessReady;
 
   return (
     <Button
@@ -100,7 +105,11 @@ function FloatingGenerateButton() {
       ) : (
         <>
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          {routingReady ? "Generate" : "Routing API required"}
+          {!routingReady
+            ? "Routing API required"
+            : !valhallaAccessReady
+              ? getValhallaAccessRequiredMessage()
+              : "Generate"}
         </>
       )}
     </Button>

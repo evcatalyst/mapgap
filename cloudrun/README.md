@@ -61,14 +61,21 @@ Build produced.
 
 ## Wire Netlify to Cloud Run
 
-Once the service responds, set this Netlify environment variable:
+Once the service responds, set these Netlify environment variables:
 
 ```bash
 VALHALLA_BASE_URL=https://YOUR-CLOUD-RUN-SERVICE-URL
+VALHALLA_SHARED_SECRET=choose-a-long-random-value
 ```
 
 Do not include `/status` or `/isochrone`; MapGap appends those paths in the
-Netlify functions.
+Netlify functions. `VALHALLA_SHARED_SECRET` is checked by the Netlify routing
+function before it proxies hosted Valhalla requests. Users enter this same value
+in MapGap when `Valhalla beta` is selected.
+
+This protects the Netlify proxy path. If the Cloud Run service allows
+unauthenticated requests, anyone with the Cloud Run URL can still call Valhalla
+directly.
 
 Validate the service before updating Netlify:
 

@@ -8,8 +8,10 @@ import {
 } from "lucide-react";
 import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
 import {
+  getValhallaAccessRequiredMessage,
   getRoutingSetupMessage,
   isAnyRoutingProviderReady,
+  isValhallaAccessReady,
   isRoutingProviderReady,
 } from "../../lib/routingStatus";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
@@ -34,6 +36,8 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   const settings = useMapIsoStore((state) => state.settings);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
   const routingReady = isRoutingProviderReady(status, settings.routingProvider);
+  const valhallaAccessReady = isValhallaAccessReady(status, settings);
+  const canGenerate = routingReady && valhallaAccessReady && points.length > 0;
   const anyRoutingReady = isAnyRoutingProviderReady(status);
 
   if (!sidebarOpen && !mobile) {
@@ -109,12 +113,16 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
           </Button>
           <Button
             type="button"
-            variant={routingReady && points.length > 0 ? "primary" : "secondary"}
+            variant={canGenerate ? "primary" : "secondary"}
             onClick={generateIsochrones}
-            disabled={!routingReady || points.length === 0 || isGeneratingIsochrones}
+            disabled={!canGenerate || isGeneratingIsochrones}
           >
             <Route className="h-4 w-4" aria-hidden="true" />
-            {!routingReady ? "Connect routing provider" : "Generate access heatmap"}
+            {!routingReady
+              ? "Connect routing provider"
+              : !valhallaAccessReady
+                ? getValhallaAccessRequiredMessage()
+                : "Generate access heatmap"}
           </Button>
         </div>
 

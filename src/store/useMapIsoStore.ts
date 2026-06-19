@@ -51,6 +51,7 @@ type MapIsoState = {
   setTimeMinutes: (minutes: number) => void;
   setTransportMode: (mode: TransportMode) => void;
   setRoutingProvider: (provider: RoutingProvider) => void;
+  setValhallaAccessSecret: (secret: string) => void;
   setMobilityMode: (mode: MobilityMode) => void;
   setViewMode: (mode: ViewMode) => void;
   setIsochroneMode: (mode: IsochroneMode) => void;
@@ -134,6 +135,7 @@ const defaultSettings: AppSettings = {
   timeMinutes: 15,
   transportMode: MOBILITY_MODES.walk.transportMode,
   routingProvider: "ors",
+  valhallaAccessSecret: "",
   mobilityMode: "walk",
   viewMode: "all",
   isochroneMode: "overlap",
@@ -323,6 +325,14 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
       isochrones: [],
     }));
     debugLog("Routing provider changed", { provider });
+  },
+  setValhallaAccessSecret: (secret) => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        valhallaAccessSecret: secret,
+      },
+    }));
   },
   setMobilityMode: (mode) => {
     set((state) => ({

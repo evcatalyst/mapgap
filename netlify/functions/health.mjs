@@ -33,6 +33,7 @@ async function checkValhalla() {
 export async function handler() {
   const openRouteService = hasConfiguredSecret("OPENROUTE_SERVICE_API_KEY");
   const openCage = hasConfiguredSecret("OPENCAGE_API_KEY");
+  const valhallaRequiresSecret = hasConfiguredSecret("VALHALLA_SHARED_SECRET");
   const valhalla = await checkValhalla();
   const hasRouting = openRouteService || valhalla;
   const status = hasRouting ? "ready" : "degraded";
@@ -52,6 +53,7 @@ export async function handler() {
       message,
       openRouteService,
       valhalla,
+      valhallaRequiresSecret,
       openCage,
     }),
   };
