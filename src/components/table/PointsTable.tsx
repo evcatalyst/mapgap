@@ -134,7 +134,7 @@ export function PointsTable() {
 
   return (
     <section
-      className="min-h-0 border-t border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
+      className="min-h-0 min-w-0 border-t border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
       aria-labelledby="points-grid-title"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800 sm:px-5">
