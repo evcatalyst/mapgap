@@ -24,7 +24,19 @@ async function checkValhalla() {
       },
     });
 
-    return response.ok;
+    if (!response.ok) {
+      return false;
+    }
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!contentType.toLowerCase().includes("json")) {
+      return false;
+    }
+
+    const data = await response.json();
+
+    return Boolean(data && typeof data === "object");
   } catch {
     return false;
   }
