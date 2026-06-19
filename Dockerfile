@@ -1,8 +1,12 @@
 ARG VALHALLA_IMAGE=ghcr.io/valhalla/valhalla-scripted:latest
 FROM ${VALHALLA_IMAGE}
 
-# Cloud Run must be configured to route traffic to this port.
-EXPOSE 8002
+# Cloud Run injects PORT. Local Valhalla still defaults to 8002.
+COPY --chmod=755 cloudrun/valhalla-cloud-run-entrypoint.sh /valhalla/scripts/mapgap-cloud-run-entrypoint.sh
+ENTRYPOINT ["/valhalla/scripts/mapgap-cloud-run-entrypoint.sh"]
+CMD ["build_tiles"]
+
+EXPOSE 8002 8082
 
 ENV tile_urls="https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf" \
     use_tiles_ignore_pbf="False" \
