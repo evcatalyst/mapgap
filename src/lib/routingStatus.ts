@@ -1,4 +1,4 @@
-import type { AppStatus, RoutingProvider } from "../types";
+import type { AppSettings, AppStatus, RoutingProvider } from "../types";
 
 export function isRoutingProviderReady(status: AppStatus, provider: RoutingProvider) {
   return provider === "valhalla"
@@ -8,6 +8,18 @@ export function isRoutingProviderReady(status: AppStatus, provider: RoutingProvi
 
 export function isAnyRoutingProviderReady(status: AppStatus) {
   return status.apiCapabilities.openRouteService || status.apiCapabilities.valhalla;
+}
+
+export function isValhallaAccessReady(status: AppStatus, settings: AppSettings) {
+  return (
+    settings.routingProvider !== "valhalla" ||
+    !status.apiCapabilities.valhallaRequiresSecret ||
+    settings.valhallaAccessSecret.trim().length > 0
+  );
+}
+
+export function getValhallaAccessRequiredMessage() {
+  return "Enter Valhalla access secret.";
 }
 
 export function getRoutingSetupMessage(status: AppStatus) {

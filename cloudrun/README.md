@@ -61,20 +61,42 @@ Build produced.
 
 ## Wire Netlify to Cloud Run
 
-Once the service responds, set this Netlify environment variable:
+Once the service responds, set these Netlify environment variables:
 
 ```bash
 VALHALLA_BASE_URL=https://YOUR-CLOUD-RUN-SERVICE-URL
+VALHALLA_SHARED_SECRET=choose-a-long-random-value
 ```
 
 Do not include `/status` or `/isochrone`; MapGap appends those paths in the
-Netlify functions.
+Netlify functions. `VALHALLA_SHARED_SECRET` is checked by the Netlify routing
+function before it proxies hosted Valhalla requests. Users enter this same value
+in MapGap when `Valhalla beta` is selected.
+
+This protects the Netlify proxy path. If the Cloud Run service allows
+unauthenticated requests, anyone with the Cloud Run URL can still call Valhalla
+directly.
 
 Validate the service before updating Netlify:
 
 ```bash
 curl https://YOUR-CLOUD-RUN-SERVICE-URL/status
 ```
+
+## Troubleshooting
+
+If Cloud Run reports `Build failed` while the trigger is configured with branch
+regex `^main$`, make sure the `Dockerfile` has been merged to `main`. Before
+that merge, either merge the Cloud Run config PR or temporarily point the trigger
+at the branch that contains the Dockerfile.
+
+If Cloud Run reports that the container failed to listen on `PORT=8082`, edit the
+service and set the container port to `8002`. The Valhalla image listens on
+`8002`; Cloud Run's configured container port must match that internal port.
+
+If the revision shows the `gcr.io/cloudrun/placeholder` image, that is not the
+Valhalla container. Check the build logs, fix the build or port settings, and
+deploy a new revision from the built image.
 
 ## Operational Note
 

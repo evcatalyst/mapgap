@@ -9,6 +9,7 @@ export type ApiHealth = {
 const DEFAULT_CAPABILITIES: ApiCapabilities = {
   openRouteService: false,
   valhalla: false,
+  valhallaRequiresSecret: false,
   openCage: false,
 };
 
@@ -44,12 +45,14 @@ export async function fetchApiHealth(): Promise<ApiHealth> {
     message?: unknown;
     openRouteService?: unknown;
     valhalla?: unknown;
+    valhallaRequiresSecret?: unknown;
     openCage?: unknown;
   };
 
   const capabilities = {
     openRouteService: Boolean(data.openRouteService),
     valhalla: Boolean(data.valhalla),
+    valhallaRequiresSecret: Boolean(data.valhallaRequiresSecret),
     openCage: Boolean(data.openCage),
   };
 

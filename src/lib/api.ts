@@ -187,6 +187,9 @@ export async function fetchPointIsochrones(
       },
       body: JSON.stringify({
         provider: settings.routingProvider,
+        ...(settings.routingProvider === "valhalla" && settings.valhallaAccessSecret.trim()
+          ? { valhallaSharedSecret: settings.valhallaAccessSecret.trim() }
+          : {}),
         point: {
           id: point.id,
           name: point.name,

@@ -1,4 +1,5 @@
 import { getConfiguredSecret } from "./_secrets.mjs";
+import { timingSafeEqual } from "crypto";
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 const ORS_ISOCHRONE_SMOOTHING = 85;
@@ -175,6 +176,46 @@ function normalizeValhallaBaseUrl() {
   return process.env.VALHALLA_BASE_URL?.trim().replace(/\/+$/, "");
 }
 
+function getPayloadValhallaSecret(payload) {
+  return typeof payload.valhallaSharedSecret === "string"
+    ? payload.valhallaSharedSecret.trim()
+    : "";
+}
+
+function secretsMatch(expected, actual) {
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(actual);
+
+  return (
+    expectedBuffer.length === actualBuffer.length &&
+    timingSafeEqual(expectedBuffer, actualBuffer)
+  );
+}
+
+function authorizeValhalla(payload) {
+  const expectedSecret = getConfiguredSecret("VALHALLA_SHARED_SECRET");
+
+  if (!expectedSecret) {
+    return undefined;
+  }
+
+  const actualSecret = getPayloadValhallaSecret(payload);
+
+  if (!actualSecret) {
+    return json(401, {
+      message: "Enter Valhalla access secret.",
+    });
+  }
+
+  if (!secretsMatch(expectedSecret, actualSecret)) {
+    return json(403, {
+      message: "Valhalla access secret is incorrect.",
+    });
+  }
+
+  return undefined;
+}
+
 function chunkArray(values, size) {
   const chunks = [];
 
@@ -213,6 +254,12 @@ async function fetchValhallaIsochroneChunk(baseUrl, event, point, costing, costi
 }
 
 async function proxyValhalla(payload, point, ranges, event) {
+  const authResponse = authorizeValhalla(payload);
+
+  if (authResponse) {
+    return authResponse;
+  }
+
   const baseUrl = normalizeValhallaBaseUrl();
 
   if (!baseUrl) {

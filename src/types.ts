@@ -30,6 +30,7 @@ export type ApiStatus = "unknown" | "ready" | "degraded" | "error";
 export type ApiCapabilities = {
   openRouteService: boolean;
   valhalla: boolean;
+  valhallaRequiresSecret: boolean;
   openCage: boolean;
 };
 
@@ -79,6 +80,7 @@ export type AppSettings = {
   timeMinutes: number;
   transportMode: TransportMode;
   routingProvider: RoutingProvider;
+  valhallaAccessSecret: string;
   mobilityMode: MobilityMode;
   viewMode: ViewMode;
   isochroneMode: IsochroneMode;

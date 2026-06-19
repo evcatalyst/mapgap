@@ -3,7 +3,9 @@ import { ROUTING_PROVIDER_LABELS } from "../constants";
 import { fetchIsochrones } from "../lib/api";
 import { debugError } from "../lib/debug";
 import {
+  getValhallaAccessRequiredMessage,
   getRoutingProviderUnavailableMessage,
+  isValhallaAccessReady,
   isRoutingProviderReady,
 } from "../lib/routingStatus";
 import { useMapIsoStore } from "../store/useMapIsoStore";
@@ -36,6 +38,13 @@ export function useIsochroneGenerator() {
       return;
     }
 
+    if (!isValhallaAccessReady(status, settings)) {
+      const message = getValhallaAccessRequiredMessage();
+      setGenerationError(message);
+      toast.error(message);
+      return;
+    }
+
     setGeneratingIsochrones(true);
     setGenerationError(undefined);
 
@@ -60,6 +69,12 @@ export function useIsochroneGenerator() {
           ...settings,
           routingProvider: "valhalla" as const,
         };
+
+        if (!isValhallaAccessReady(status, fallbackSettings)) {
+          setGenerationError(message);
+          debugError("Isochrone generation failed", error);
+          return;
+        }
 
         setRoutingProvider("valhalla");
         setGenerationError(undefined);

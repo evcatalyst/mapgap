@@ -87,12 +87,16 @@ Required Netlify site environment variables:
 OPENROUTE_SERVICE_API_KEY
 OPENCAGE_API_KEY
 VALHALLA_BASE_URL
+VALHALLA_SHARED_SECRET
 ```
 
 `VALHALLA_BASE_URL` is optional for production until the beta provider is hosted.
 Do not set it to `localhost` in Netlify; Netlify Functions need a public or private-network
 URL that is reachable from Netlify's runtime. If neither ORS nor hosted Valhalla is
 configured, the public app still loads but heatmap generation is disabled.
+`VALHALLA_SHARED_SECRET` is optional, but recommended for hosted Valhalla. When
+set, MapGap requires users to enter the same secret before proxying Valhalla
+isochrone requests.
 
 ## Hosted Valhalla on Cloud Run
 
