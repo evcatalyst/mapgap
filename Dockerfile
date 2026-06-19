@@ -2,7 +2,8 @@ ARG VALHALLA_IMAGE=ghcr.io/valhalla/valhalla-scripted:latest
 FROM ${VALHALLA_IMAGE}
 
 # Cloud Run injects PORT. Local Valhalla still defaults to 8002.
-COPY --chmod=755 cloudrun/valhalla-cloud-run-entrypoint.sh /valhalla/scripts/mapgap-cloud-run-entrypoint.sh
+COPY cloudrun/valhalla-cloud-run-entrypoint.sh /valhalla/scripts/mapgap-cloud-run-entrypoint.sh
+RUN chmod 755 /valhalla/scripts/mapgap-cloud-run-entrypoint.sh
 ENTRYPOINT ["/valhalla/scripts/mapgap-cloud-run-entrypoint.sh"]
 CMD ["build_tiles"]
 
