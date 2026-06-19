@@ -94,6 +94,23 @@ Do not set it to `localhost` in Netlify; Netlify Functions need a public or priv
 URL that is reachable from Netlify's runtime. If neither ORS nor hosted Valhalla is
 configured, the public app still loads but heatmap generation is disabled.
 
+## Hosted Valhalla on Cloud Run
+
+The root `Dockerfile` is for Cloud Run continuous deployment of the Valhalla beta
+provider. In Cloud Run, create a service from the GitHub repo with:
+
+```text
+Branch regex: ^main$
+Build type: Dockerfile
+Dockerfile: /Dockerfile
+Build context: /
+```
+
+Configure the service to send traffic to container port `8002`, then add the
+environment variables from `cloudrun/valhalla-env.yaml`. After the Cloud Run
+service is healthy, set Netlify `VALHALLA_BASE_URL` to the service URL without a
+path suffix. See `cloudrun/README.md` for the full service settings.
+
 Recommended branch protection for `main`:
 
 - Require the `Typecheck, build, audit` check.
