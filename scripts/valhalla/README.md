@@ -46,9 +46,11 @@ Open the app, wait for the API status pill to refresh, then choose
 ## Validate the Service
 
 ```bash
-curl -s http://localhost:8002/status
+curl -s http://localhost:8002/isochrone \
+  -H 'Content-Type: application/json' \
+  --data '{"locations":[{"lat":42.7798,"lon":-73.8457}],"costing":"pedestrian","contours":[{"time":1}],"polygons":false}'
 ```
 
-If `/status` is not available on the image version, the app will mark Valhalla
-unavailable even if the container is running. In that case verify manually with
-an `/isochrone` request and adjust `netlify/functions/health.mjs`.
+The response should be a GeoJSON `FeatureCollection`. MapGap's health check
+tries `/status` first when available, then falls back to this lightweight
+`/isochrone` probe.
