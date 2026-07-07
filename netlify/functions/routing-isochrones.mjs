@@ -5,6 +5,26 @@ const ORS_BASE_URL = "https://api.openrouteservice.org";
 const ORS_ISOCHRONE_SMOOTHING = 85;
 const VALHALLA_MAX_CONTOURS_PER_REQUEST = 4;
 const VALHALLA_SECRET_HEADER = "X-Valhalla-Shared-Secret";
+const DEFAULT_VALHALLA_COVERAGE_REGION = "capital-region";
+const DEFAULT_VALHALLA_COVERAGE_BBOX = "-74.50,42.35,-73.25,43.25";
+const BUILTIN_VALHALLA_COVERAGE = {
+  "capital-region": {
+    label: "Capital Region Valhalla graph",
+    bboxes: [{ west: -74.5, south: 42.35, east: -73.25, north: 43.25 }],
+  },
+  "ny-nj": {
+    label: "New York + New Jersey Valhalla graph",
+    bboxes: [
+      { west: -75.62, south: 38.88, east: -73.85, north: 41.42 },
+      { west: -74.35, south: 40.45, east: -71.75, north: 41.35 },
+      { west: -74.9, south: 40.9, east: -73.15, north: 42.45 },
+      { west: -75.15, south: 42.1, east: -73.0, north: 43.75 },
+      { west: -76.25, south: 43.0, east: -73.0, north: 45.15 },
+      { west: -79.85, south: 42.0, east: -75.0, north: 43.75 },
+      { west: -79.85, south: 41.75, east: -74.0, north: 42.6 },
+    ],
+  },
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Accept",
@@ -52,6 +72,94 @@ function normalizePoint(point) {
   }
 
   return { lat, lng };
+}
+
+function parseBbox(value) {
+  if (!value) {
+    return undefined;
+  }
+
+  const [west, south, east, north] = value.split(",").map(normalizeNumber);
+
+  if (
+    west === undefined ||
+    south === undefined ||
+    east === undefined ||
+    north === undefined ||
+    west >= east ||
+    south >= north
+  ) {
+    return undefined;
+  }
+
+  return { west, south, east, north };
+}
+
+function parseBboxes(value) {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(";")
+    .map((entry) => parseBbox(entry.trim()))
+    .filter(Boolean);
+}
+
+function getCoverageProfile() {
+  const region =
+    process.env.VALHALLA_COVERAGE_REGION?.trim().toLowerCase() ||
+    DEFAULT_VALHALLA_COVERAGE_REGION;
+
+  return BUILTIN_VALHALLA_COVERAGE[region] || BUILTIN_VALHALLA_COVERAGE[DEFAULT_VALHALLA_COVERAGE_REGION];
+}
+
+function getValhallaCoverageBboxes() {
+  const explicitBboxes = parseBboxes(process.env.VALHALLA_COVERAGE_BBOXES);
+
+  if (explicitBboxes.length > 0) {
+    return explicitBboxes;
+  }
+
+  const legacyBbox = parseBbox(process.env.VALHALLA_COVERAGE_BBOX);
+
+  if (legacyBbox) {
+    return [legacyBbox];
+  }
+
+  return getCoverageProfile().bboxes || [parseBbox(DEFAULT_VALHALLA_COVERAGE_BBOX)].filter(Boolean);
+}
+
+function getCoverageLabel() {
+  return process.env.VALHALLA_COVERAGE_LABEL?.trim() || getCoverageProfile().label;
+}
+
+function pointInBbox(point, bbox) {
+  return (
+    point.lng >= bbox.west &&
+    point.lng <= bbox.east &&
+    point.lat >= bbox.south &&
+    point.lat <= bbox.north
+  );
+}
+
+function validateValhallaCoverage(point) {
+  const bboxes = getValhallaCoverageBboxes();
+
+  if (bboxes.length === 0 || bboxes.some((bbox) => pointInBbox(point, bbox))) {
+    return undefined;
+  }
+
+  return json(422, {
+    message: `${getCoverageLabel()} does not cover this location. Heatmap routing is disabled here until ORS is configured or a wider Valhalla graph is deployed.`,
+    code: "VALHALLA_OUT_OF_COVERAGE",
+    coverage: {
+      provider: "valhalla",
+      label: getCoverageLabel(),
+      bbox: bboxes[0],
+      bboxes,
+    },
+  });
 }
 
 function normalizeRanges(ranges) {
@@ -270,6 +378,12 @@ async function proxyValhalla(payload, point, ranges, event) {
 
   if (authResponse) {
     return authResponse;
+  }
+
+  const coverageResponse = validateValhallaCoverage(point);
+
+  if (coverageResponse) {
+    return coverageResponse;
   }
 
   const baseUrl = normalizeValhallaBaseUrl();

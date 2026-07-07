@@ -9,6 +9,10 @@ const profiles = {
     source: "capital-region.env",
     output: ".resolved-capital-region.env",
   },
+  "ny-nj": {
+    source: "ny-nj.env",
+    output: ".resolved-ny-nj.env",
+  },
   "jersey-city-nyc": {
     source: "jersey-city-nyc.env",
     output: ".resolved-jersey-city-nyc.env",

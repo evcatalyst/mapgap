@@ -22,7 +22,7 @@ spec:
             # Set VALHALLA_SHARED_SECRET in the Cloud Run UI or Secret Manager.
             # It must match the Netlify VALHALLA_SHARED_SECRET value.
             - name: tile_urls
-              value: "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf"
+              value: "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf,https://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf"
             - name: MAPGAP_PREBUILT_TILES
               value: "True"
             - name: MAPGAP_ENABLE_PROXY
@@ -52,4 +52,4 @@ spec:
           resources:
             limits:
               cpu: "2"
-              memory: 4Gi
+              memory: 8Gi

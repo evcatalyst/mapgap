@@ -19,7 +19,7 @@ Use these service settings:
 
 ```text
 Container port: 8082
-Memory: 4 GiB minimum
+Memory: 8 GiB recommended for the NY+NJ graph
 CPU: 2
 Request timeout: 300 seconds
 Concurrency: 10
@@ -32,22 +32,24 @@ Add the environment variables from `cloudrun/valhalla-env.yaml` to the Cloud Run
 service. The root `Dockerfile` also sets the same defaults, but Cloud Run service
 env vars are easier to change without editing the image.
 
-The Dockerfile downloads the New York OSM extract, clips it to a Capital Region
-bbox around Niskayuna/Schenectady/Albany, and prebuilds that smaller Valhalla
-graph during Cloud Build. At runtime, Valhalla listens on internal port `8002`
-and a small MapGap proxy listens on Cloud Run's injected `PORT` value. `/status`
-is public and returns proxy health. Routing paths such as `/isochrone` require the
-`X-Valhalla-Shared-Secret` header when `VALHALLA_SHARED_SECRET` is set on the
-Cloud Run service.
+The Dockerfile downloads the New York and New Jersey OSM extracts, merges them,
+and prebuilds a regional Valhalla graph during Cloud Build. At runtime, Valhalla
+listens on internal port `8002` and a small MapGap proxy listens on Cloud Run's
+injected `PORT` value. `/status` is public and returns proxy health. Routing
+paths such as `/isochrone` require the `X-Valhalla-Shared-Secret` header when
+`VALHALLA_SHARED_SECRET` is set on the Cloud Run service.
 
 The build-time defaults can be overridden in Cloud Build if you need a different
 coverage area:
 
 ```text
-VALHALLA_TILE_URLS=https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf
-VALHALLA_EXTRACT_BBOX=-74.50,42.35,-73.25,43.25
-VALHALLA_EXTRACT_NAME=capital-region.osm.pbf
+VALHALLA_TILE_URLS=https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf,https://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf
+VALHALLA_EXTRACT_BBOX=
+VALHALLA_EXTRACT_NAME=ny-nj.osm.pbf
 ```
+
+Set `VALHALLA_EXTRACT_BBOX` to a `west,south,east,north` value when building a
+smaller clipped graph, such as the original Capital Region demo graph.
 
 To protect the direct Cloud Run URL, set `VALHALLA_SHARED_SECRET` on the Cloud
 Run service to the same value used in Netlify. If it is only set in Netlify, the
@@ -67,7 +69,7 @@ gcloud run deploy mapgap-valhalla \
   --image REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/mapgap-valhalla:TAG \
   --region REGION \
   --port 8082 \
-  --memory 4Gi \
+  --memory 8Gi \
   --cpu 2 \
   --timeout 300 \
   --concurrency 10 \
@@ -87,6 +89,8 @@ Once the service responds, set these Netlify environment variables:
 ```bash
 VALHALLA_BASE_URL=https://YOUR-CLOUD-RUN-SERVICE-URL
 VALHALLA_SHARED_SECRET=choose-a-long-random-value
+VALHALLA_COVERAGE_REGION=ny-nj
+VALHALLA_COVERAGE_LABEL=New York + New Jersey Valhalla graph
 ```
 
 Do not include `/status` or `/isochrone`; MapGap appends those paths in the
@@ -110,7 +114,7 @@ If `VALHALLA_SHARED_SECRET` is set on Cloud Run, validate routing with:
 curl -s https://YOUR-CLOUD-RUN-SERVICE-URL/isochrone \
   -H 'X-Valhalla-Shared-Secret: YOUR_SHARED_SECRET' \
   -H 'Content-Type: application/json' \
-  --data '{"locations":[{"lat":42.7798,"lon":-73.8457}],"costing":"pedestrian","contours":[{"time":1}],"polygons":false}'
+  --data '{"locations":[{"lat":40.7306,"lon":-74.0559}],"costing":"pedestrian","contours":[{"time":1}],"polygons":false}'
 ```
 
 The response should be a GeoJSON `FeatureCollection`. A Cloud Run placeholder
@@ -144,4 +148,4 @@ deploy a new revision from the built image.
 The Valhalla image builds tiles under `/custom_files` during Docker build and
 ships the generated `valhalla_tiles.tar` in the image. That keeps Cloud Run
 startup fast and avoids rebuilding tiles on every cold instance. Updating the OSM
-extract or bbox means rebuilding the container image.
+extract list or bbox means rebuilding the container image.

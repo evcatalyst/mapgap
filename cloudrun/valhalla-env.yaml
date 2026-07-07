@@ -1,4 +1,4 @@
-tile_urls: "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf"
+tile_urls: "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf,https://download.geofabrik.de/north-america/us/new-jersey-latest.osm.pbf"
 MAPGAP_PREBUILT_TILES: "True"
 MAPGAP_ENABLE_PROXY: "True"
 VALHALLA_SERVICE_PORT: "8002"

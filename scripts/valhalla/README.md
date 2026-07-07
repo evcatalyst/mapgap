@@ -11,12 +11,15 @@ node scripts/valhalla/resolve-geofabrik-env.mjs capital-region
 docker compose --env-file scripts/valhalla/.resolved-capital-region.env -f docker-compose.valhalla.yml up
 ```
 
-## Start Jersey City / NYC Graph
+## Start New York + New Jersey Graph
 
 ```bash
-node scripts/valhalla/resolve-geofabrik-env.mjs jersey-city-nyc
-docker compose --env-file scripts/valhalla/.resolved-jersey-city-nyc.env -f docker-compose.valhalla.yml up
+node scripts/valhalla/resolve-geofabrik-env.mjs ny-nj
+docker compose --env-file scripts/valhalla/.resolved-ny-nj.env -f docker-compose.valhalla.yml up
 ```
+
+`jersey-city-nyc` is kept as a backwards-compatible alias for the same extract
+set.
 
 The first run downloads OSM extracts and builds tiles in `valhalla-data/`. That
 can take several minutes. Set `VALHALLA_FORCE_REBUILD=True` when changing
