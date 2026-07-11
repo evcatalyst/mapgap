@@ -152,10 +152,16 @@ Goal: create a separately deployable analyst-first MapGap that uses the best of
 Kepler.gl, MapLibre, and deck.gl without adding their weight or release risk to
 V2. See the [Kepler.gl V3 evaluation](reports/kepler-gl-evaluation.md).
 
+Status: `V3.0` and `V3.1` are implemented as a fixture-only, read-only internal
+alpha in `apps/v3`. It has no V2 route or public deployment. Production is
+blocked on the documented Kepler audit, peer, CSP, and bundle gates.
+
 Architecture:
 
-- Give `/v3` its own application build, dependency graph, audit, CSP, browser
-  matrix, performance budget, and rollback path.
+- Give V3 its own application build, dependency graph, audit, CSP, browser
+  matrix, performance budget, and rollback path. `apps/v3` has its own npm
+  manifest, lockfile, CI lane, and future separate-site configuration; V2 does
+  not route `/v3`.
 - Share domain schemas, API clients, routing/scoring services, provenance, and
   report contracts with V2 rather than sharing UI state or renderer internals.
 - Put supported Kepler packages behind versioned MapGap dataset adapters. Keep
@@ -170,22 +176,25 @@ Architecture:
 
 Milestones:
 
-- `V3.0 - Architecture`: approve the application boundary and portable project
-  schema; create the independent build/workspace; preserve the green V2
-  regression and audit baselines.
-- `V3.1 - Internal alpha`: open V2 project fixtures in V3; compare routed access
-  with proximity and candidate scores; prove a token-free MapLibre style,
-  adapter parity, and zero V2 artifact/dependency impact.
-- `V3.2 - Partner beta`: add candidate and civic-capacity presets, saved views,
-  evidence exports, telemetry, accessibility, scale, CSP, and browser tests;
-  validate with a small analyst cohort.
+- `V3.0 - Architecture` — **implemented**: independent V3 build/workspace,
+  dependency-free `mapgap-project/v1` contract, V2 isolation guard, and V2
+  artifact budget guard.
+- `V3.1 - Internal alpha` — **implemented, internal only**: versioned one-way
+  V2 adapter; relocation routed-access/candidate preset; civic
+  capacity/utilization/underserved-proxy preset; token-free self-contained
+  MapLibre style; contract, parity, browser, token, and scale-policy checks.
+- `V3.2 - Partner beta` — **pending**: validate the two implemented presets
+  with a bounded analyst cohort; add approved real project/result inputs, saved
+  views, evidence exports, telemetry, accessibility, 100k/1M scale evidence,
+  deployed CSP/WebGL recovery, and browser matrix evidence.
 - `V3.3 - Production`: add only the persistence, permissions, operations, and
   support capabilities proven necessary by the beta; publish independent SLOs
   and rollback procedures.
-- `V3.F - Conditional fork`: consider a scoped `mapgap/kepler.gl` fork only if
-  two valuable V3 workflows are proven, supported extension points cannot meet
-  at least two critical requirements, the security/release patch line is
-  necessary, and a maintainer plus recurring sync budget are assigned.
+- `V3.F - Upstream-first security patch line` — **local spike active**: keep a
+  minimal patch series against Kepler master, validate fixes in the upstream
+  suite, and submit generic slices independently. Publishing a scoped MapGap
+  fork remains conditional on a clean packed-consumer audit, CSP and browser
+  evidence, an assigned maintainer, and upstream release timing.
 
 Exit criteria:
 
@@ -195,10 +204,18 @@ Exit criteria:
   provenance, and report inputs in V2 and V3.
 - V3 passes its own security, CSP, WebGL recovery, accessibility, performance,
   scale, export, and rollback gates.
+- The V3 public prerelease remains at zero audit findings; any regression
+  closes the publication gate.
 - At least two analyst workflows demonstrate material value over V2 before V3
   becomes a supported production product.
 - Any fork has an upstream-sync process, patch ledger, SBOM/license checks,
   signed releases, an owned maintenance budget, and an explicit stop condition.
+- The local patch line has cleared Hubble's legacy Kepler/D3 pin and proven a
+  zero-finding packed npm core graph. Deck/editable-layers alignment, React
+  Intl 7, and the Vite 8 browser build are verified. Before any beta or
+  publication it must clear the remaining Hubble/Mapbox peers, same-version
+  luma duplicate initialization, strict-CSP deployment, and browser-suite
+  harness. Lodash 4.18.1 is verified.
 
 ## Later Platform Work
 

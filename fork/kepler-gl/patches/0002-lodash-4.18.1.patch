@@ -1,0 +1,208 @@
+# Applies after 0001-security-runtime-spike.patch.
+# Generated against keplergl/kepler.gl master 73af58e99e3971b89d556aab9a21814e6e6b31e7.
+# Regenerate yarn.lock with Yarn 4.4.0 after applying.
+diff --git a/package.json b/package.json
+index d3ef844..5a02b75 100644
+--- a/package.json
++++ b/package.json
+@@ -256,7 +256,6 @@
+     "@luma.gl/test-utils": "9.3.2",
+     "@luma.gl/webgl": "9.3.2",
+     "@luma.gl/webgpu": "9.3.2",
+-    "@types/lodash": "4.17.5",
+     "browserslist": "^4.17.0",
+     "caniuse-lite": "^1.0.30001636",
+     "d3-array": "^2.8.0",
+@@ -265,7 +264,8 @@
+     "dot-prop": "6.0.0",
+     "kind-of": "6.0.3",
+     "jpeg-js": "^0.4.3",
+-    "lodash": "4.17.23",
++    "@types/lodash": "4.17.24",
++    "lodash": "4.18.1",
+     "minimist": "1.2.6",
+     "node-fetch": "2.7.0",
+     "thrift": "0.23.0",
+diff --git a/src/actions/package.json b/src/actions/package.json
+index 84fe6a5..0daf748 100644
+--- a/src/actions/package.json
++++ b/src/actions/package.json
+@@ -39,10 +39,10 @@
+     "@kepler.gl/types": "3.3.0-alpha.1",
+     "@kepler.gl/utils": "3.3.0-alpha.1",
+     "@reduxjs/toolkit": "^1.7.2",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "@types/react-redux": "^7.1.23",
+     "@types/redux-actions": "^2.6.2",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "react-redux": "^8.0.5",
+     "redux": "^5.0.0",
+     "redux-actions": "^2.2.1"
+diff --git a/src/components/package.json b/src/components/package.json
+index 7b8694f..ed35fbd 100644
+--- a/src/components/package.json
++++ b/src/components/package.json
+@@ -72,7 +72,7 @@
+     "@types/d3-scale": "^3.2.2",
+     "@types/d3-selection": "^3.0.2",
+     "@types/exenv": "^1.2.0",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "@types/react": "^19.0.0",
+     "@types/react-copy-to-clipboard": "^5.0.2",
+     "@types/react-dom": "^19.0.0",
+@@ -93,7 +93,7 @@
+     "fuzzy": "^0.1.3",
+     "global": "^4.3.0",
+     "lexical": "^0.9.0",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "mapbox-gl": "1.13.1",
+     "maplibre-gl": "^4.0.0",
+     "maplibregl-mapbox-request-transformer": "^0.0.2",
+diff --git a/src/components/src/modals/swipe-export-video-preview.tsx b/src/components/src/modals/swipe-export-video-preview.tsx
+index b3ac052..8019688 100644
+--- a/src/components/src/modals/swipe-export-video-preview.tsx
++++ b/src/components/src/modals/swipe-export-video-preview.tsx
+@@ -7,7 +7,7 @@ import ReactMapGL, {type MapRef, useControl} from 'react-map-gl/maplibre';
+ // @ts-ignore module resolution mismatch with moduleResolution:"node"
+ import {MapboxOverlay} from '@deck.gl/mapbox';
+ import type {Deck, DeckProps, MapViewState} from '@deck.gl/core';
+-import isEqual from 'lodash.isequal';
++import isEqual from 'lodash/isEqual';
+ import styled from 'styled-components';
+ 
+ import {DeckAdapter} from '@hubble.gl/core';
+diff --git a/src/deckgl-layers/package.json b/src/deckgl-layers/package.json
+index ce45477..b14624b 100644
+--- a/src/deckgl-layers/package.json
++++ b/src/deckgl-layers/package.json
+@@ -48,11 +48,11 @@
+     "@math.gl/web-mercator": "^4.1.0",
+     "@types/d3-array": "^2.8.0",
+     "@types/geojson": "^7946.0.8",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "@types/supercluster": "^7.1.0",
+     "d3-array": "^2.8.0",
+     "global": "^4.3.0",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "pbf": "^3.1.0",
+     "supercluster": "^7.1.0",
+     "viewport-mercator-project": "^6.0.0"
+diff --git a/src/duckdb/package.json b/src/duckdb/package.json
+index 7c966ad..5e3ff53 100644
+--- a/src/duckdb/package.json
++++ b/src/duckdb/package.json
+@@ -52,6 +52,7 @@
+     "@monaco-editor/react": "^4.7.0",
+     "@radix-ui/react-collapsible": "^1.1.0",
+     "apache-arrow": ">=15.0.0",
++    "lodash": "4.18.1",
+     "monaco-editor": "^0.52.0",
+     "react-resizable-panels": "^2.1.7"
+   },
+diff --git a/src/layers/package.json b/src/layers/package.json
+index 8256cc0..9a572b9 100644
+--- a/src/layers/package.json
++++ b/src/layers/package.json
+@@ -70,7 +70,7 @@
+     "@turf/helpers": "^6.1.4",
+     "@types/geojson": "^7946.0.8",
+     "@types/keymirror": "^0.1.1",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "@types/styled-components": "^5.1.32",
+     "apache-arrow": ">=15.0.0",
+     "buffer": "6.0.3",
+@@ -80,7 +80,7 @@
+     "d3-shape": "^1.2.0",
+     "global": "^4.3.0",
+     "keymirror": "^0.1.1",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "long": "^4.0.0",
+     "markdown-to-jsx": "^7.7.6",
+     "prop-types": "^15.6.0",
+diff --git a/src/reducers/package.json b/src/reducers/package.json
+index 148b6b1..dcc5898 100644
+--- a/src/reducers/package.json
++++ b/src/reducers/package.json
+@@ -52,14 +52,14 @@
+     "@turf/bbox": "^6.0.1",
+     "@turf/bbox-polygon": "^6.0.1",
+     "@turf/boolean-within": "^6.0.1",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "@types/redux-actions": "^2.6.2",
+     "copy-to-clipboard": "^3.3.1",
+     "d3-color": "^3.1.0",
+     "d3-dsv": "^2.0.0",
+     "deepmerge": "^4.2.2",
+     "global": "^4.3.0",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "redux": "^5.0.0",
+     "redux-actions": "^2.2.1",
+     "reselect": "^5.0.0"
+diff --git a/src/schemas/package.json b/src/schemas/package.json
+index e6a4c0d..7362b9c 100644
+--- a/src/schemas/package.json
++++ b/src/schemas/package.json
+@@ -38,11 +38,11 @@
+     "@kepler.gl/utils": "3.3.0-alpha.1",
+     "@loaders.gl/loader-utils": "^4.4.1",
+     "@types/keymirror": "^0.1.1",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "apache-arrow": ">=15.0.0",
+     "global": "^4.3.0",
+     "keymirror": "^0.1.1",
+-    "lodash": "4.17.23"
++    "lodash": "4.18.1"
+   },
+   "nyc": {
+     "sourceMap": false,
+diff --git a/src/table/package.json b/src/table/package.json
+index fe27ce7..2192bbc 100644
+--- a/src/table/package.json
++++ b/src/table/package.json
+@@ -38,10 +38,10 @@
+     "@loaders.gl/mvt": "^4.4.1",
+     "@loaders.gl/pmtiles": "^4.4.1",
+     "@types/d3-array": "^2.8.0",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "d3-array": "^2.8.0",
+     "global": "^4.3.0",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "moment": "^2.10.6",
+     "type-analyzer": "0.4.0"
+   },
+diff --git a/src/utils/package.json b/src/utils/package.json
+index 0f8d094..ba91fbc 100644
+--- a/src/utils/package.json
++++ b/src/utils/package.json
+@@ -42,7 +42,7 @@
+     "@turf/helpers": "^6.1.4",
+     "@types/d3-array": "^2.8.0",
+     "@types/keymirror": "^0.1.1",
+-    "@types/lodash": "4.17.5",
++    "@types/lodash": "4.17.24",
+     "apache-arrow": ">=15.0.0",
+     "d3-array": "^2.8.0",
+     "d3-color": "^3.1.0",
+@@ -52,7 +52,7 @@
+     "global": "^4.3.0",
+     "h3-js": "^3.1.0",
+     "keymirror": "^0.1.1",
+-    "lodash": "4.17.23",
++    "lodash": "4.18.1",
+     "mapbox-gl": "^1.13.1",
+     "maplibre-gl": "^4.0.0",
+     "maplibregl-mapbox-request-transformer": "^0.0.2",
+

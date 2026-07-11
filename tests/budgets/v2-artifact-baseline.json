@@ -1,0 +1,11 @@
+{
+  "measured": {
+    "raw": 772581,
+    "gzip": 233321
+  },
+  "maximum": {
+    "raw": 811210,
+    "gzip": 244987
+  },
+  "policy": "V3 work may not increase the V2 artifact by more than five percent without an explicit V2 decision."
+}

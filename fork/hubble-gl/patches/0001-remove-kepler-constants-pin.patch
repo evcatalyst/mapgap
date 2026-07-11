@@ -1,0 +1,39 @@
+# Generated against uber/hubble.gl master 089f603f81ac088a1ba6a82747cdf6cfe71090da.
+# Regenerate yarn.lock with Yarn 4.5.2 after applying.
+diff --git a/modules/react/package.json b/modules/react/package.json
+index 46f52bd..82978ff 100644
+--- a/modules/react/package.json
++++ b/modules/react/package.json
+@@ -34,7 +34,6 @@
+   ],
+   "sideEffects": false,
+   "dependencies": {
+-    "@kepler.gl/constants": "3.1.0",
+     "@loaders.gl/zip": "^4.3.3",
+     "@turf/helpers": "^5.1.5",
+     "@turf/transform-translate": "^5.1.5",
+diff --git a/modules/react/src/components/export-video/export-video-panel-container.tsx b/modules/react/src/components/export-video/export-video-panel-container.tsx
+index f2655a7..6f2ce61 100644
+--- a/modules/react/src/components/export-video/export-video-panel-container.tsx
++++ b/modules/react/src/components/export-video/export-video-panel-container.tsx
+@@ -21,7 +21,9 @@ import {parseSetCameraType, scaleToVideoExport} from './utils';
+ import {DEFAULT_FILENAME, getResolutionSetting} from './constants';
+ import type {MapProps} from 'react-map-gl';
+ import type {DeckProps, MapViewState} from '@deck.gl/core';
+-import {FILTER_VIEW_TYPES} from '@kepler.gl/constants';
++
++// Keep Hubble's generic export panel independent from a specific Kepler release.
++const ENLARGED_FILTER_VIEW = 'enlarged';
+ 
+ const ENCODERS = {
+   gif: GifEncoder,
+@@ -227,7 +229,7 @@ export class ExportVideoPanelContainer extends Component<
+       Array.isArray(animatableFilters) && animatableFilters.length
+         ? animatableFilters
+         : // only animate an enlarged time filter if animatable filters aren't specified.
+-          filters.filter(f => f.type === 'timeRange' && f.view === FILTER_VIEW_TYPES.enlarged)
++          filters.filter(f => f.type === 'timeRange' && f.view === ENLARGED_FILTER_VIEW)
+     ).map(f => ({
+       id: f.id,
+       timings: [0, this.state.durationMs]
+

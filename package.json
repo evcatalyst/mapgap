@@ -11,6 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test:visual": "playwright test",
     "test:live": "playwright test -c playwright.live.config.ts",
+    "check:v2-isolation": "node scripts/assert-v2-isolation.mjs",
+    "check:v2-budget": "node scripts/check-artifact-budget.mjs --dist dist --baseline tests/budgets/v2-artifact-baseline.json",
+    "check:kepler-fork": "node scripts/check-kepler-fork-evidence.mjs",
+    "v3:build": "npm --prefix apps/v3 run build",
+    "v3:test": "npm --prefix apps/v3 run test",
     "preview": "vite preview"
   },
   "engines": {

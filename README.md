@@ -62,6 +62,30 @@ Omit `MAPGAP_VALHALLA_SECRET` when `/api/health` reports
 `valhallaRequiresSecret: false`. Never commit a real provider or client-access
 secret.
 
+## V3 Internal Analyst Alpha
+
+V2 remains the public product. The Kepler-backed V3 analyst alpha is a separate
+application, lockfile, CI lane, and future site—not a route or dependency of the
+V2 Netlify deployment.
+
+```bash
+npm --prefix apps/v3 ci
+npm --prefix apps/v3 run build
+npm --prefix apps/v3 run test
+```
+
+It currently renders read-only relocation and civic-capacity fixtures through a
+versioned portable project contract. Its public prerelease is available at
+`https://mapgap-v3-preview.netlify.app`; production promotion remains blocked
+by bundle, packaging, SBOM/license, and review gates; see
+[apps/v3/SECURITY.md](apps/v3/SECURITY.md) and the
+[V3 evaluation](docs/reports/kepler-gl-evaluation.md).
+
+The public upstream-first Kepler security patch line is tracked in
+[`fork/kepler-gl`](fork/kepler-gl/README.md). It has verified dependency and
+task-runtime fixes against upstream master and is published from
+`evcatalyst/kepler.gl`; it is not yet production-cleared.
+
 ## Routing Providers
 
 MapGap supports two routing providers behind the same `/api/routing/isochrones`
