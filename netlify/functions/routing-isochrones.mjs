@@ -1,5 +1,13 @@
 import { getConfiguredSecret } from "./_secrets.mjs";
 import { timingSafeEqual } from "crypto";
+import {
+  cacheHeaders,
+  getCached,
+  getTtlMs,
+  makeCacheKey,
+  setCached,
+  withCacheMetadata,
+} from "./_cache.mjs";
 
 const ORS_BASE_URL = "https://api.openrouteservice.org";
 const ORS_ISOCHRONE_SMOOTHING = 85;
@@ -7,6 +15,8 @@ const VALHALLA_MAX_CONTOURS_PER_REQUEST = 4;
 const VALHALLA_SECRET_HEADER = "X-Valhalla-Shared-Secret";
 const DEFAULT_VALHALLA_COVERAGE_REGION = "capital-region";
 const DEFAULT_VALHALLA_COVERAGE_BBOX = "-74.50,42.35,-73.25,43.25";
+const ROUTING_CACHE_TTL_MS = getTtlMs("MAPGAP_ROUTING_CACHE_TTL_SECONDS", 1800);
+const routingCache = new Map();
 const BUILTIN_VALHALLA_COVERAGE = {
   "capital-region": {
     label: "Capital Region Valhalla graph",
@@ -29,20 +39,31 @@ const BUILTIN_VALHALLA_COVERAGE = {
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Accept",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Cache-Control": "no-store",
 };
 
 const ORS_PROFILES = new Set(["driving-car", "cycling-regular", "foot-walking"]);
 
-function json(statusCode, payload) {
+function json(statusCode, payload, extraHeaders = {}) {
   return {
     statusCode,
     headers: {
       ...corsHeaders,
+      ...extraHeaders,
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
     },
     body: JSON.stringify(payload),
   };
+}
+
+function logRoutingEvent(event, details) {
+  console.info(
+    JSON.stringify({
+      event: `mapgap.routing.${event}`,
+      timestamp: new Date().toISOString(),
+      ...details,
+    }),
+  );
 }
 
 function decodeBody(event) {
@@ -177,6 +198,7 @@ function forwardHeaders(response) {
   const headers = {
     ...corsHeaders,
     "Content-Type": response.headers.get("content-type") || "application/json",
+    "Cache-Control": "no-store",
   };
   const retryAfter = response.headers.get("retry-after");
 
@@ -281,6 +303,22 @@ function getValhallaCosting(payload) {
   };
 }
 
+function buildRoutingCacheKey(payload, point, ranges) {
+  return makeCacheKey("routing-isochrones", {
+    provider: payload.provider,
+    point: {
+      lat: Number(point.lat.toFixed(6)),
+      lng: Number(point.lng.toFixed(6)),
+    },
+    ranges,
+    transportMode: payload.transportMode,
+    mobilityMode: payload.mobilityMode,
+    valhallaBaseUrl: payload.provider === "valhalla" ? normalizeValhallaBaseUrl() : undefined,
+    valhallaCoverage: payload.provider === "valhalla" ? getCoverageLabel() : undefined,
+    orsSmoothing: payload.provider === "ors" ? ORS_ISOCHRONE_SMOOTHING : undefined,
+  });
+}
+
 function normalizeValhallaBaseUrl() {
   return process.env.VALHALLA_BASE_URL?.trim().replace(/\/+$/, "");
 }
@@ -301,10 +339,17 @@ function secretsMatch(expected, actual) {
   );
 }
 
+function requiresClientValhallaSecret() {
+  return (
+    Boolean(getConfiguredSecret("VALHALLA_SHARED_SECRET")) &&
+    process.env.VALHALLA_REQUIRE_CLIENT_SECRET?.trim().toLowerCase() === "true"
+  );
+}
+
 function authorizeValhalla(payload) {
   const expectedSecret = getConfiguredSecret("VALHALLA_SHARED_SECRET");
 
-  if (!expectedSecret) {
+  if (!expectedSecret || !requiresClientValhallaSecret()) {
     return undefined;
   }
 
@@ -453,6 +498,8 @@ async function proxyValhalla(payload, point, ranges, event) {
 }
 
 export async function handler(event) {
+  const requestStartedAt = Date.now();
+
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -488,15 +535,79 @@ export async function handler(event) {
   }
 
   try {
-    return provider === "valhalla"
+    const cacheKey = buildRoutingCacheKey(payload, point, ranges);
+    const cached = getCached(routingCache, cacheKey);
+
+    if (cached) {
+      logRoutingEvent("completed", {
+        provider,
+        cacheHit: true,
+        contourCount: ranges.length,
+        featureCount: cached.value.features?.length || 0,
+        durationMs: Date.now() - requestStartedAt,
+        statusCode: 200,
+      });
+      return json(
+        200,
+        withCacheMetadata(cached.value, cached.meta),
+        cacheHeaders(cached.meta),
+      );
+    }
+
+    const response = provider === "valhalla"
       ? await proxyValhalla(payload, point, ranges, event)
       : await proxyOpenRouteService(payload, point, ranges, event);
+
+    if (response.statusCode !== 200) {
+      logRoutingEvent("failed", {
+        provider,
+        cacheHit: false,
+        contourCount: ranges.length,
+        durationMs: Date.now() - requestStartedAt,
+        statusCode: response.statusCode,
+      });
+      return response;
+    }
+
+    let payloadJson;
+
+    try {
+      payloadJson = JSON.parse(response.body);
+    } catch {
+      return response;
+    }
+
+    const stored = setCached(routingCache, cacheKey, payloadJson, ROUTING_CACHE_TTL_MS);
+
+    logRoutingEvent("completed", {
+      provider,
+      cacheHit: false,
+      contourCount: ranges.length,
+      featureCount: payloadJson.features?.length || 0,
+      durationMs: Date.now() - requestStartedAt,
+      statusCode: 200,
+    });
+
+    return {
+      ...response,
+      headers: {
+        ...response.headers,
+        ...cacheHeaders(stored.meta),
+      },
+      body: JSON.stringify(withCacheMetadata(stored.value, stored.meta)),
+    };
   } catch (error) {
+    console.error("Routing provider request failed", error);
+    logRoutingEvent("failed", {
+      provider,
+      cacheHit: false,
+      contourCount: ranges.length,
+      failureCategory: error instanceof Error ? error.name : "unknown_error",
+      durationMs: Date.now() - requestStartedAt,
+      statusCode: 502,
+    });
     return json(502, {
-      message:
-        error instanceof Error
-          ? `Routing provider request failed: ${error.message}`
-          : "Routing provider request failed.",
+      message: "Routing provider request failed. Try again in a moment.",
     });
   }
 }
