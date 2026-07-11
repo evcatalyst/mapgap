@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+const mobileViewport = process.env.PLAYWRIGHT_MOBILE === "1";
 
 export default defineConfig({
   testDir: "./tests",
@@ -9,7 +10,7 @@ export default defineConfig({
   use: {
     baseURL: externalBaseURL || "http://127.0.0.1:4174",
     browserName: "chromium",
-    viewport: { width: 1440, height: 960 },
+    viewport: mobileViewport ? {width: 390, height: 844} : { width: 1440, height: 960 },
   },
   webServer: externalBaseURL ? undefined : {
     command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4174 --strictPort",

@@ -5,6 +5,11 @@ V3 is a separately installable analyst workbench published at
 and Kepler presentation seam without changing V2's dependency graph, build,
 routing, or deploy. It remains fixture-only and is not approved for partner data.
 
+Scenario links:
+
+- `https://mapgap-v3-preview.netlify.app/#relocation`
+- `https://mapgap-v3-preview.netlify.app/#civic`
+
 ```sh
 npm --prefix apps/v3 ci
 npm --prefix apps/v3 run build

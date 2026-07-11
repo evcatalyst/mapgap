@@ -39,6 +39,7 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
     dataset(MAPGAP_DATASET_IDS.points, "MapGap points", project.points.map((point) => feature(point.geometry, {
       id: point.id,
       name: point.name,
+      mapLabel: point.name.replace(/ anchor$/i, ""),
       address: point.address,
       color: point.color,
       createdAt: point.createdAt,
@@ -66,6 +67,7 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
       layer.points.map((point) => feature(point.geometry, {
         id: point.id,
         name: point.name,
+        mapLabel: point.name,
         layerId: layer.id,
         layerLabel: layer.label,
         layerVisible: layer.visible,
@@ -83,6 +85,7 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
     dataset(MAPGAP_DATASET_IDS.candidates, "Candidate scores", project.candidates.map((candidate) => feature(candidate.geometry, {
       id: candidate.id,
       label: candidate.label,
+      mapLabel: candidate.score?.failedConstraints.length ? "Fails commute" : "Passes route",
       source: candidate.source,
       rank: candidate.rank,
       totalScore: candidate.score?.total,
@@ -103,6 +106,7 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
       id: asset.id,
       pointId: asset.pointId,
       name: asset.name,
+      mapLabel: asset.assetType === "computer-lab" ? "Computer lab" : asset.assetType === "library" ? "Library" : asset.name,
       assetType: asset.assetType,
       capacity: asset.capacity,
       utilizationRate: asset.utilizationRate,

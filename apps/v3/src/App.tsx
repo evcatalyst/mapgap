@@ -12,10 +12,11 @@ import {
   TOKEN_FREE_MAP_STYLE_ID,
   TOKEN_FREE_MAP_STYLES,
 } from "./map/token-free-style";
+import {getStoryLayers, getStoryMapConfig} from "./map/story-config";
 import "./styles.css";
 
 const KEPLER_ID = "mapgap-v3-alpha";
-const V2_HANDOFF_URL = import.meta.env.VITE_MAPGAP_V2_URL || "/v2";
+const V2_HANDOFF_URL = import.meta.env.VITE_MAPGAP_V2_URL || "https://mapgap-access.netlify.app/v2";
 
 type PresetId = "relocation" | "civic";
 
@@ -34,7 +35,7 @@ const PRESETS: Record<PresetId, { label: string; detail: string; getProject: () 
 
 export default function App() {
   const dispatch = useDispatch();
-  const [presetId, setPresetId] = useState<PresetId>("relocation");
+  const [presetId, setPresetId] = useState<PresetId>(() => getInitialPreset());
   const [keplerReady, setKeplerReady] = useState(false);
   const [webglLost, setWebglLost] = useState(false);
   const [status, setStatus] = useState("Preparing V3 presentation state…");
@@ -44,6 +45,8 @@ export default function App() {
   const project = useMemo(() => preset.getProject(), [preset]);
   const datasets = useMemo(() => projectToKeplerDatasets(project), [project]);
   const evidence = useMemo(() => projectToEvidenceSummary(project), [project]);
+  const storyLayers = useMemo(() => getStoryLayers(presetId, project), [presetId, project]);
+  const storyConfig = useMemo(() => getStoryMapConfig(presetId, project), [presetId, project]);
 
   useEffect(() => {
     const resize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -63,10 +66,11 @@ export default function App() {
         addDataToMap({
           datasets,
           options: {
-            centerMap: true,
+            centerMap: false,
             readOnly: true,
-            autoCreateLayers: true,
+            autoCreateLayers: false,
           },
+          config: storyConfig,
           info: {
             title: project.scenario.label || project.scenario.id,
             description: "MapGap portable-project fixture rendered by the V3 alpha adapter.",
@@ -74,8 +78,8 @@ export default function App() {
         }),
       ),
     );
-    setStatus(`${datasets.length} canonical MapGap datasets loaded into V3 presentation state.`);
-  }, [datasets, dispatch, keplerReady, project.scenario.id, project.scenario.label]);
+    setStatus(`${storyLayers.length} visible evidence layers loaded from ${datasets.length} canonical datasets.`);
+  }, [datasets, dispatch, keplerReady, project.scenario.id, project.scenario.label, storyConfig, storyLayers.length]);
 
   useEffect(() => {
     const canvas = document.querySelector("canvas");
@@ -93,6 +97,7 @@ export default function App() {
     setKeplerReady(false);
     setStatus("Switching portable project fixture…");
     setPresetId(nextPreset);
+    window.history.replaceState(null, "", `#${nextPreset}`);
   }
 
   if (!webglSupported || webglLost) {
@@ -103,14 +108,14 @@ export default function App() {
     <main className="v3-shell">
       <header className="v3-header">
         <div>
-          <p className="eyebrow">Internal-only • dependency-isolated • read-only</p>
-          <h1>MapGap V3 Analyst Alpha</h1>
+          <p className="eyebrow">Public prerelease • fixture-only • read-only</p>
+          <h1>MapGap V3 Analyst Preview</h1>
           <p className="header-copy">Routed access, capacity, and evidence sit outside generic map configuration.</p>
         </div>
         <a className="handoff-link" href={V2_HANDOFF_URL}>Open focused V2</a>
       </header>
 
-      <section className="preset-bar" aria-label="V3 alpha presets">
+      <section className="preset-bar" aria-label="V3 preview scenarios">
         {(Object.entries(PRESETS) as Array<[PresetId, (typeof PRESETS)[PresetId]]>).map(([id, option]) => (
           <button
             key={id}
@@ -139,6 +144,7 @@ export default function App() {
             <Metric label="Underserved areas" value={evidence.underservedAreaCount} />
           </dl>
           <p className="alpha-note">Map style: self-contained MapLibre canvas; no token, third-party tiles, or provider secret.</p>
+          <MapLegend layers={storyLayers} />
           {presetId === "relocation" ? <RelocationEvidence project={project} /> : <CivicEvidence project={project} />}
         </aside>
 
@@ -153,14 +159,30 @@ export default function App() {
             mapStyles={TOKEN_FREE_MAP_STYLES}
             mapStylesReplaceDefault
             width={dimensions.width}
-            height={Math.max(440, dimensions.height - 172)}
+            height={dimensions.width <= 900 ? Math.min(560, Math.max(360, dimensions.height * 0.58)) : Math.max(520, dimensions.height - 172)}
             readOnly
-            appName="MapGap V3 Alpha"
+            appName="MapGap V3 Preview"
             onKeplerGlInitialized={() => setKeplerReady(true)}
           />
         </section>
       </section>
     </main>
+  );
+}
+
+function MapLegend({layers}: {layers: ReturnType<typeof getStoryLayers>}) {
+  return (
+    <section className="map-legend" aria-label="Visible map layers" data-testid="map-legend">
+      <strong>Visible on the map</strong>
+      <ul>
+        {layers.map((layer) => (
+          <li key={layer.id}>
+            <span className={layer.kind === "polygon" ? "legend-swatch polygon" : "legend-swatch"} style={{backgroundColor: `rgb(${layer.color.join(" ")})`}} />
+            {layer.label}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -222,7 +244,7 @@ function CivicEvidence({ project }: { project: MapGapProjectV1 }) {
 function RecoveryScreen({ contextLost }: { contextLost: boolean }) {
   return (
     <main className="recovery-screen" role="alert">
-      <p className="eyebrow">MapGap V3 alpha recovery</p>
+      <p className="eyebrow">MapGap V3 preview recovery</p>
       <h1>{contextLost ? "The map graphics context was lost." : "This browser cannot start the V3 map canvas."}</h1>
       <p>MapGap has not changed the portable project. Use V2 for the focused, non-WebGL workflow.</p>
       <a className="handoff-link" href={V2_HANDOFF_URL}>Open focused V2</a>
@@ -250,4 +272,9 @@ function supportsWebGl() {
   } catch {
     return false;
   }
+}
+
+function getInitialPreset(): PresetId {
+  if (typeof window === "undefined") return "relocation";
+  return window.location.hash === "#civic" ? "civic" : "relocation";
 }
