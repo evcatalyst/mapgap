@@ -18,6 +18,14 @@ body,
   height: 100%;
 }
 
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    min-height: 100dvh;
+  }
+}
+
 body {
   margin: 0;
 }
@@ -41,6 +49,44 @@ select {
 
 .leaflet-control-attribution {
   font-size: 10px;
+}
+
+.mapgap-v2-topbar {
+  top: max(calc(env(safe-area-inset-top) + 0.85rem), 0.85rem);
+}
+
+.mapgap-v2-fab {
+  bottom: max(calc(env(safe-area-inset-bottom) + 1rem), 5.75rem);
+}
+
+.mapgap-v2-drawer {
+  padding-bottom: max(calc(env(safe-area-inset-bottom) + 0.875rem), 2.5rem);
+}
+
+.mapgap-v2-drawer button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (min-width: 640px) {
+  .mapgap-v2-fab {
+    bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+
+  .mapgap-v2-drawer {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.875rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .mapiso-marker-shell {
@@ -81,6 +127,104 @@ select {
 }
 
 .dark .mapiso-marker::before {
+  border-color: #171717;
+}
+
+.mapgap-poi-marker-shell {
+  background: transparent;
+  border: 0;
+}
+
+.mapgap-poi-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 8px 10px rgba(15, 23, 42, 0.22));
+}
+
+.mapgap-poi-marker::before {
+  position: absolute;
+  inset: 2px;
+  content: "";
+  background: color-mix(in srgb, var(--poi-color) 82%, white 18%);
+  border: 2px solid white;
+  border-radius: 999px;
+}
+
+.mapgap-poi-marker span {
+  position: absolute;
+  left: 9px;
+  top: 9px;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  background: white;
+  border-radius: 999px;
+}
+
+.dark .mapgap-poi-marker::before {
+  border-color: #171717;
+}
+
+.mapgap-service-marker-shell {
+  background: transparent;
+  border: 0;
+}
+
+.mapgap-service-marker {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--service-color) 88%, white 12%);
+  border: 3px solid white;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.25);
+}
+
+.mapgap-service-marker span {
+  position: absolute;
+  inset: 8px;
+  border-radius: 999px;
+  background: white;
+}
+
+.mapgap-service-marker--selected {
+  width: 36px;
+  height: 36px;
+  border-width: 4px;
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--service-color) 24%, transparent),
+    0 14px 24px rgba(15, 23, 42, 0.3);
+}
+
+.mapgap-service-marker--selected span {
+  inset: 11px;
+}
+
+.dark .mapgap-service-marker {
+  border-color: #171717;
+}
+
+.mapgap-candidate-marker-shell {
+  background: transparent;
+  border: 0;
+}
+
+.mapgap-candidate-marker {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 9999px;
+  background: var(--candidate-color);
+  color: white;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dark .mapgap-candidate-marker {
   border-color: #171717;
 }
 

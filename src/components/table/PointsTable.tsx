@@ -58,7 +58,7 @@ export function PointsTable() {
       {
         accessorKey: "address",
         header: "Address",
-        size: 340,
+        size: 300,
         cell: ({ row }) => {
           const status = geocodeStatusByPointId[row.original.id];
 
@@ -74,6 +74,67 @@ export function PointsTable() {
             </div>
           );
         },
+      },
+      {
+        accessorKey: "assetType",
+        header: "Type",
+        size: 150,
+        cell: ({ row }) =>
+          row.original.assetType ? (
+            <Badge variant="outline">{row.original.assetType}</Badge>
+          ) : (
+            <span className="text-xs text-neutral-400">-</span>
+          ),
+      },
+      {
+        accessorKey: "capacity",
+        header: "Capacity",
+        size: 110,
+        cell: ({ row }) =>
+          row.original.capacity !== undefined ? (
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              {row.original.capacity}
+            </span>
+          ) : (
+            <span className="text-xs text-neutral-400">-</span>
+          ),
+      },
+      {
+        accessorKey: "hoursOpen",
+        header: "Hours",
+        size: 140,
+        cell: ({ row }) =>
+          row.original.hoursOpen ? (
+            <span className="text-sm text-neutral-700 dark:text-neutral-200">
+              {row.original.hoursOpen}
+            </span>
+          ) : (
+            <span className="text-xs text-neutral-400">-</span>
+          ),
+      },
+      {
+        accessorKey: "utilization",
+        header: "Use",
+        size: 140,
+        cell: ({ row }) =>
+          row.original.utilization ? (
+            <span className="text-sm text-neutral-700 dark:text-neutral-200">
+              {row.original.utilization}
+            </span>
+          ) : (
+            <span className="text-xs text-neutral-400">-</span>
+          ),
+      },
+      {
+        accessorKey: "fundingSource",
+        header: "Funding",
+        size: 160,
+        cell: ({ row }) =>
+          row.original.fundingSource ? (
+            <Badge variant="outline">{row.original.fundingSource}</Badge>
+          ) : (
+            <span className="text-xs text-neutral-400">-</span>
+          ),
       },
       {
         id: "status",
@@ -157,9 +218,112 @@ export function PointsTable() {
       </div>
 
       <div
+        className={cn(
+          "md:hidden",
+          points.length === 0 ? "grid min-h-[220px] place-items-center" : "max-h-[420px] overflow-y-auto p-3",
+        )}
+      >
+        {points.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+              No locations yet.
+            </p>
+            <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+              Tap the map, use commands, or import a CSV to start.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {points.map((point) => {
+              const status = geocodeStatusByPointId[point.id] || "idle";
+              const variant =
+                status === "success" ? "success" : status === "failed" ? "warning" : "outline";
+
+              return (
+                <article
+                  key={point.id}
+                  className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-white shadow-sm"
+                      style={{ backgroundColor: point.color }}
+                      aria-label={`${point.name} marker color`}
+                    >
+                      <MapPin className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <TextCell point={point} field="name" />
+                    </div>
+                    <Badge variant={variant}>{status}</Badge>
+                  </div>
+
+                  <label className="mt-3 block">
+                    <span className="mb-1 block text-xs font-medium text-neutral-500">
+                      Address
+                    </span>
+                    <TextCell point={point} field="address" />
+                  </label>
+
+                  {(point.assetType ||
+                    point.capacity !== undefined ||
+                    point.hoursOpen ||
+                    point.utilization ||
+                    point.fundingSource) && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {point.assetType && <Badge variant="outline">{point.assetType}</Badge>}
+                      {point.capacity !== undefined && (
+                        <Badge variant="outline">Capacity {point.capacity}</Badge>
+                      )}
+                      {point.hoursOpen && <Badge variant="outline">Hours {point.hoursOpen}</Badge>}
+                      {point.utilization && <Badge variant="outline">Use {point.utilization}</Badge>}
+                      {point.fundingSource && (
+                        <Badge variant="outline">Funding {point.fundingSource}</Badge>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-neutral-500">
+                        Latitude
+                      </span>
+                      <CoordinateCell point={point} field="lat" />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-neutral-500">
+                        Longitude
+                      </span>
+                      <CoordinateCell point={point} field="lng" />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs text-neutral-500 dark:text-neutral-400">
+                      {formatCoordinate(point.lat)}, {formatCoordinate(point.lng)}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => removePoint(point.id)}
+                      aria-label={`Remove ${point.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Remove
+                    </Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div
         ref={parentRef}
         className={cn(
-          "h-[260px] overflow-auto",
+          "hidden h-[260px] overflow-auto md:block",
           points.length === 0 && "grid place-items-center",
         )}
       >
@@ -173,7 +337,7 @@ export function PointsTable() {
             </p>
           </div>
         ) : (
-          <table className="grid min-w-[1280px] text-left text-sm">
+          <table className="grid min-w-[1920px] text-left text-sm">
             <thead className="sticky top-0 z-10 grid border-b border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-normal text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id} className="flex w-full">

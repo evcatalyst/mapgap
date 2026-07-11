@@ -1,11 +1,12 @@
 import { SCENARIO_PRESETS } from "./scenarioPresets";
+import { useScenarioLauncher } from "../../hooks/useScenarioLauncher";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import type { ScenarioId } from "../../types";
 import { Select } from "../ui/select";
 
 export function ScenarioSelector() {
   const selectedScenario = useMapIsoStore((state) => state.settings.selectedScenario);
-  const applyScenario = useMapIsoStore((state) => state.applyScenario);
+  const { launchScenario } = useScenarioLauncher();
 
   return (
     <label className="block">
@@ -15,7 +16,7 @@ export function ScenarioSelector() {
         onChange={(event) => {
           const value = event.target.value;
           if (value) {
-            applyScenario(value as ScenarioId);
+            launchScenario(value as ScenarioId);
           }
         }}
         aria-label="Scenario profile"

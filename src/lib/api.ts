@@ -3,7 +3,11 @@ import { MOBILITY_MODES, ROUTING_PROVIDER_LABELS } from "../constants";
 import type {
   AppSettings,
   IsochroneFeature,
+  MapBounds,
   MapPoint,
+  PlaceSearchResult,
+  PoiCategory,
+  PointOfInterest,
 } from "../types";
 import { debugError, debugLog } from "./debug";
 import { getEffortAdjustedMinutes } from "./terrain";
@@ -25,6 +29,22 @@ type RoutingIsochroneResponse = {
   message?: string;
 };
 
+type PoiSearchResponse = {
+  points?: PointOfInterest[];
+  source?: "google" | "osm";
+  category?: PoiCategory;
+  label?: string;
+  query?: string;
+  total?: number;
+  truncated?: boolean;
+  message?: string;
+};
+
+type PlaceSearchResponse = {
+  results?: PlaceSearchResult[];
+  message?: string;
+};
+
 type IsochroneBucketRequest = {
   bucketMinutes: number;
   adjustedMinutes: number;
@@ -34,7 +54,8 @@ type IsochroneBucketRequest = {
   slopeBurden: number;
 };
 
-const PROVIDER_REQUEST_SPACING_MS = 650;
+const ORS_REQUEST_SPACING_MS = 650;
+const VALHALLA_MAX_PARALLEL_REQUESTS = 4;
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -94,6 +115,120 @@ export async function reverseGeocode(lat: number, lng: number) {
 
   const data = (await response.json()) as OpenCageResponse & { formatted?: string };
   return data.formatted || data.results?.[0]?.formatted;
+}
+
+function bboxParam(bounds?: MapBounds) {
+  return bounds ? [bounds.south, bounds.west, bounds.north, bounds.east].join(",") : undefined;
+}
+
+export async function searchPlaces(query: string, bounds?: MapBounds) {
+  const params = new URLSearchParams({
+    q: query,
+  });
+
+  const bbox = bboxParam(bounds);
+
+  if (bbox) {
+    params.set("bbox", bbox);
+  }
+
+  debugLog("Place search request", { query, bounds });
+
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/place/search?${params}`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    throw buildNetworkError("Place search", error);
+  }
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(`Place search ${response.status}: ${message}`);
+  }
+
+  const data = (await response.json()) as PlaceSearchResponse;
+
+  if (!Array.isArray(data.results)) {
+    throw new Error(data.message || "Place search returned no results.");
+  }
+
+  return data.results;
+}
+
+export async function fetchPoiPlacesInBounds({
+  bounds,
+  category,
+  query,
+  sort,
+}: {
+  bounds: MapBounds;
+  category: PoiCategory;
+  query?: string;
+  sort?: "name" | "rating";
+}) {
+  const params = new URLSearchParams({
+    category,
+    bbox: bboxParam(bounds) || "",
+  });
+
+  if (query?.trim()) {
+    params.set("q", query.trim());
+  }
+
+  if (sort) {
+    params.set("sort", sort);
+  }
+
+  debugLog("POI search request", { category, query, bounds });
+
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/poi/search?${params}`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+  } catch (error) {
+    throw buildNetworkError("POI search", error);
+  }
+
+  if (!response.ok) {
+    const message = await parseApiError(response);
+    throw new Error(`POI search ${response.status}: ${message}`);
+  }
+
+  const data = (await response.json()) as PoiSearchResponse;
+
+  if (!Array.isArray(data.points)) {
+    throw new Error(data.message || "POI search returned no point data.");
+  }
+
+  const responseCategory = data.category || category;
+  const normalizedPoints = data.points.map((point) => ({
+    ...point,
+    category: point.category || responseCategory,
+  }));
+
+  return {
+    points: normalizedPoints,
+    source: data.source || "osm",
+    category: responseCategory,
+    label: data.label || query || category,
+    query: data.query || query || "",
+    total: data.total ?? normalizedPoints.length,
+    truncated: Boolean(data.truncated),
+    message: data.message,
+  };
+}
+
+export async function fetchLaundryPlacesInBounds(bounds: MapBounds) {
+  return fetchPoiPlacesInBounds({ bounds, category: "laundry" });
 }
 
 function getFeatureSeconds(feature: RoutingIsochroneFeature) {
@@ -268,19 +403,52 @@ export async function fetchIsochrones(
   settings: AppSettings,
 ) {
   try {
-    const features: IsochroneFeature[][] = [];
+    if (settings.routingProvider !== "valhalla") {
+      const features: IsochroneFeature[][] = [];
 
-    for (const [index, point] of points.entries()) {
-      if (index > 0) {
-        await sleep(PROVIDER_REQUEST_SPACING_MS);
+      for (const [index, point] of points.entries()) {
+        if (index > 0) {
+          await sleep(ORS_REQUEST_SPACING_MS);
+        }
+
+        features.push(await fetchPointIsochrones(point, settings));
       }
 
-      features.push(await fetchPointIsochrones(point, settings));
+      return features.flat();
     }
+
+    const features = await mapWithConcurrency(
+      points,
+      Math.min(VALHALLA_MAX_PARALLEL_REQUESTS, Math.max(1, points.length)),
+      (point) => fetchPointIsochrones(point, settings),
+    );
 
     return features.flat();
   } catch (error) {
     debugError("Isochrone generation failed", error);
     throw error;
   }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => runWorker()),
+  );
+
+  return results;
 }

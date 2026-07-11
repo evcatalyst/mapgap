@@ -11,6 +11,8 @@ type ScratchCanvas = {
   ctx: CanvasRenderingContext2D;
 };
 
+const ENABLE_WATER_BARRIER_ERASER = false;
+
 function drawRing(
   ctx: CanvasRenderingContext2D,
   map: L.Map,
@@ -72,6 +74,26 @@ function makeScratchCanvas(width: number, height: number): ScratchCanvas | undef
   canvas.height = height;
 
   return { canvas, ctx };
+}
+
+function getScratchCanvas(
+  scratch: ScratchCanvas | undefined,
+  width: number,
+  height: number,
+) {
+  if (!scratch) {
+    return makeScratchCanvas(width, height);
+  }
+
+  if (scratch.canvas.width !== width) {
+    scratch.canvas.width = width;
+  }
+
+  if (scratch.canvas.height !== height) {
+    scratch.canvas.height = height;
+  }
+
+  return scratch;
 }
 
 function clearScratch(scratch: ScratchCanvas, width: number, height: number) {
@@ -231,7 +253,13 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
     const canvas = L.DomUtil.create("canvas", "mapiso-raster-isochrones");
     const pane = map.getPanes().overlayPane;
     const buckets = getBuckets(features);
+    const featuresByBucket = new Map(
+      buckets.map((bucket) => [bucket, getFeaturesByBucket(features, bucket)]),
+    );
     const outermostFeatures = getOutermostFeaturesByPoint(features);
+    let frameId: number | undefined;
+    let maskScratch: ScratchCanvas | undefined;
+    let colorScratch: ScratchCanvas | undefined;
 
     canvas.style.pointerEvents = "none";
     pane.appendChild(canvas);
@@ -243,15 +271,24 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
       const pixelWidth = size.x * dpr;
       const pixelHeight = size.y * dpr;
       const ctx = canvas.getContext("2d");
-      const maskScratch = makeScratchCanvas(pixelWidth, pixelHeight);
-      const colorScratch = makeScratchCanvas(pixelWidth, pixelHeight);
+      const nextMaskScratch = getScratchCanvas(maskScratch, pixelWidth, pixelHeight);
+      const nextColorScratch = getScratchCanvas(colorScratch, pixelWidth, pixelHeight);
 
-      if (!ctx || !maskScratch || !colorScratch) {
+      if (!ctx || !nextMaskScratch || !nextColorScratch) {
         return;
       }
 
-      canvas.width = pixelWidth;
-      canvas.height = pixelHeight;
+      maskScratch = nextMaskScratch;
+      colorScratch = nextColorScratch;
+
+      if (canvas.width !== pixelWidth) {
+        canvas.width = pixelWidth;
+      }
+
+      if (canvas.height !== pixelHeight) {
+        canvas.height = pixelHeight;
+      }
+
       canvas.style.width = `${size.x}px`;
       canvas.style.height = `${size.y}px`;
       L.DomUtil.setPosition(canvas, topLeft);
@@ -263,11 +300,11 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
       ctx.lineCap = "round";
 
       buckets.forEach((bucket) => {
-        const bucketFeatures = getFeaturesByBucket(features, bucket);
+        const bucketFeatures = featuresByBucket.get(bucket) || [];
         const color = getAccessBucketColor(bucket);
 
         buildMask(
-          maskScratch,
+          nextMaskScratch,
           bucketFeatures,
           map,
           topLeft,
@@ -278,8 +315,8 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
         );
         paintMask(
           ctx,
-          colorScratch,
-          maskScratch.canvas,
+          nextColorScratch,
+          nextMaskScratch.canvas,
           color,
           Math.min(0.2, Math.max(0.08, settings.opacity * 0.42)),
           size.x,
@@ -290,11 +327,11 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
       });
 
       buckets.forEach((bucket) => {
-        const bucketFeatures = getFeaturesByBucket(features, bucket);
+        const bucketFeatures = featuresByBucket.get(bucket) || [];
         const color = getAccessBucketColor(bucket);
 
         buildMask(
-          maskScratch,
+          nextMaskScratch,
           bucketFeatures,
           map,
           topLeft,
@@ -305,8 +342,8 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
         );
         eraseMask(
           ctx,
-          colorScratch,
-          maskScratch.canvas,
+          nextColorScratch,
+          nextMaskScratch.canvas,
           size.x,
           size.y,
           pixelWidth,
@@ -314,8 +351,8 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
         );
         paintMask(
           ctx,
-          colorScratch,
-          maskScratch.canvas,
+          nextColorScratch,
+          nextMaskScratch.canvas,
           color,
           settings.isochroneMode === "individual"
             ? Math.min(0.42, Math.max(0.22, settings.opacity * 1.04))
@@ -328,18 +365,18 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
       });
 
       if (settings.isochroneMode === "overlap" && outermostFeatures.length > 1) {
-        clearScratch(maskScratch, pixelWidth, pixelHeight);
-        maskScratch.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        maskScratch.ctx.filter = theme === "dark" ? "blur(18px)" : "blur(16px)";
-        maskScratch.ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
+        clearScratch(nextMaskScratch, pixelWidth, pixelHeight);
+        nextMaskScratch.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        nextMaskScratch.ctx.filter = theme === "dark" ? "blur(18px)" : "blur(16px)";
+        nextMaskScratch.ctx.fillStyle = "rgba(0, 0, 0, 0.38)";
         outermostFeatures.forEach((feature) =>
-          drawFeature(maskScratch.ctx, map, topLeft, feature),
+          drawFeature(nextMaskScratch.ctx, map, topLeft, feature),
         );
 
         paintMask(
           ctx,
-          colorScratch,
-          maskScratch.canvas,
+          nextColorScratch,
+          nextMaskScratch.canvas,
           theme === "dark" ? "#88d6bd" : "#276f78",
           theme === "dark" ? 0.09 : 0.075,
           size.x,
@@ -350,14 +387,30 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
         );
       }
 
-      eraseWaterBarriers(ctx, map, topLeft);
+      if (ENABLE_WATER_BARRIER_ERASER) {
+        eraseWaterBarriers(ctx, map, topLeft);
+      }
+    };
+
+    const scheduleRedraw = () => {
+      if (frameId !== undefined) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = undefined;
+        redraw();
+      });
     };
 
     redraw();
-    map.on("moveend zoomend resize viewreset", redraw);
+    map.on("moveend zoomend resize viewreset", scheduleRedraw);
 
     return () => {
-      map.off("moveend zoomend resize viewreset", redraw);
+      map.off("moveend zoomend resize viewreset", scheduleRedraw);
+      if (frameId !== undefined) {
+        window.cancelAnimationFrame(frameId);
+      }
       canvas.remove();
     };
   }, [features, map, settings.isochroneMode, settings.opacity, theme]);

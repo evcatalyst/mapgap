@@ -1,7 +1,9 @@
-import { toPng } from "html-to-image";
 import type { IsochroneCollection, MapPoint } from "../types";
+import type { CandidateHome, HouseholdProfile } from "../domain/decisionTypes";
 import { exportPointsCsv } from "./csv";
 import { buildMapIsoGeoJson } from "./geojson";
+import { buildDecisionMemoMarkdown } from "./report";
+import type { AppSettings, PoiLayer } from "../types";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -33,6 +35,7 @@ export function exportGeoJson(points: MapPoint[], isochrones: IsochroneCollectio
 }
 
 export async function exportPng(element: HTMLElement) {
+  const { toPng } = await import("html-to-image");
   const dataUrl = await toPng(element, {
     cacheBust: true,
     pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
@@ -42,4 +45,20 @@ export async function exportPng(element: HTMLElement) {
   const response = await fetch(dataUrl);
   const blob = await response.blob();
   downloadBlob(blob, `mapgap-map-${timestamp()}.png`);
+}
+
+export function exportDecisionMemoMarkdown(input: {
+  profile: HouseholdProfile;
+  candidates: CandidateHome[];
+  poiLayers: PoiLayer[];
+  points: MapPoint[];
+  isochrones: IsochroneCollection;
+  settings: AppSettings;
+}) {
+  const markdown = buildDecisionMemoMarkdown(input);
+  const blob = new Blob([markdown], {
+    type: "text/markdown;charset=utf-8",
+  });
+
+  downloadBlob(blob, `mapgap-decision-memo-${timestamp()}.md`);
 }

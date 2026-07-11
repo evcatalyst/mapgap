@@ -90,10 +90,17 @@ async function checkValhalla() {
   }
 }
 
+function requiresClientValhallaSecret() {
+  return (
+    hasConfiguredSecret("VALHALLA_SHARED_SECRET") &&
+    process.env.VALHALLA_REQUIRE_CLIENT_SECRET?.trim().toLowerCase() === "true"
+  );
+}
+
 export async function handler() {
   const openRouteService = hasConfiguredSecret("OPENROUTE_SERVICE_API_KEY");
   const openCage = hasConfiguredSecret("OPENCAGE_API_KEY");
-  const valhallaRequiresSecret = hasConfiguredSecret("VALHALLA_SHARED_SECRET");
+  const valhallaRequiresSecret = requiresClientValhallaSecret();
   const valhalla = await checkValhalla();
   const hasRouting = openRouteService || valhalla;
   const status = hasRouting ? "ready" : "degraded";

@@ -14,6 +14,21 @@
   status = 200
 
 [[redirects]]
+  from = "/api/poi/search"
+  to = "/.netlify/functions/poi-search"
+  status = 200
+
+[[redirects]]
+  from = "/api/place/search"
+  to = "/.netlify/functions/place-search"
+  status = 200
+
+[[redirects]]
+  from = "/api/service-points"
+  to = "/.netlify/functions/service-points"
+  status = 200
+
+[[redirects]]
   from = "/api/openrouteservice/*"
   to = "/.netlify/functions/openrouteservice?path=:splat"
   status = 200
@@ -21,6 +36,16 @@
 [[redirects]]
   from = "/api/opencage/reverse"
   to = "/.netlify/functions/opencage-reverse"
+  status = 200
+
+[[redirects]]
+  from = "/v2"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/v2/*"
+  to = "/index.html"
   status = 200
 
 [[redirects]]
