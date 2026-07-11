@@ -1,6 +1,12 @@
 node_modules
 dist
 .netlify
+.tmp
+playwright-report
+playwright-report-live
+test-results
+test-results-*
+.codex-visual-regression
 __pycache__/
 *.py[cod]
 .env

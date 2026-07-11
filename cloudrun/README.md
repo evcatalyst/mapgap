@@ -94,9 +94,10 @@ VALHALLA_COVERAGE_LABEL=New York + New Jersey Valhalla graph
 ```
 
 Do not include `/status` or `/isochrone`; MapGap appends those paths in the
-Netlify functions. `VALHALLA_SHARED_SECRET` is checked by the Netlify routing
-function before it proxies hosted Valhalla requests. Users enter this same value
-in MapGap when `Valhalla beta` is selected.
+Netlify functions. `VALHALLA_SHARED_SECRET` authenticates Netlify to the direct
+Cloud Run proxy. It is not requested from public users unless Netlify also has
+`VALHALLA_REQUIRE_CLIENT_SECRET=true`. Keep the default false for public `/v2`
+field testing and enable it only for a deliberately gated deployment.
 
 Netlify also forwards the shared secret to Cloud Run as
 `X-Valhalla-Shared-Secret`. Set the same `VALHALLA_SHARED_SECRET` value on Cloud

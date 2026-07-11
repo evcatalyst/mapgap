@@ -7,7 +7,10 @@
     "dev": "netlify dev",
     "dev:vite": "vite",
     "build": "tsc --noEmit && vite build",
+    "test": "npm run build && npm run test:visual",
     "typecheck": "tsc --noEmit",
+    "test:visual": "playwright test",
+    "test:live": "playwright test -c playwright.live.config.ts",
     "preview": "vite preview"
   },
   "engines": {
@@ -33,6 +36,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.15",

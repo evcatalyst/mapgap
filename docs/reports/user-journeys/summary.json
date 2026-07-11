@@ -1,0 +1,103 @@
+[
+  {
+    "id": "story-1",
+    "title": "First run to generated heatmap",
+    "viewport": "1440x900",
+    "clicks": 1,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/01-first-run-desktop.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/02-public-routing-generate-visible.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/03-generated-heatmap.png"
+    ],
+    "notes": [
+      "Public routing is server-managed; no Valhalla secret is shown in the default flow.",
+      "Persistent top-bar generate action makes the next step visible."
+    ]
+  },
+  {
+    "id": "story-2",
+    "title": "Quickly add and edit locations",
+    "viewport": "1440x900",
+    "clicks": 1,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/04-add-point-action-visible.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/05-point-added.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/06-edit-point-table.png"
+    ],
+    "notes": [
+      "Visible top-bar Add point avoids hunting inside the sidebar or command palette.",
+      "Editing is still table-first; future versions should support adding named anchors directly from the profile layer."
+    ]
+  },
+  {
+    "id": "story-3",
+    "title": "Relocation scenario profile review",
+    "viewport": "1440x900",
+    "clicks": 0,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/07-relocation-profile.png"
+    ],
+    "notes": [
+      "The profile layer is now visible before deeper controls.",
+      "Score weights are inspectable, but the panel is dense and should later graduate into a guided wizard."
+    ]
+  },
+  {
+    "id": "story-4",
+    "title": "Dual-career scenario",
+    "viewport": "1440x900",
+    "clicks": 1,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/08-dual-career-profile.png"
+    ],
+    "notes": [
+      "Scenario switch is fast and updates anchors/constraints.",
+      "The current UI explains assumptions but does not yet generate candidate home zones."
+    ]
+  },
+  {
+    "id": "story-5",
+    "title": "Mobile first run",
+    "viewport": "390x844",
+    "clicks": 2,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/09-mobile-first-run.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/10-mobile-public-controls.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/11-mobile-generated.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/12-mobile-location-cards.png"
+    ],
+    "notes": [
+      "Mobile avoids horizontal overflow.",
+      "Search, POIs, clear, and generate are reachable without a credential prompt."
+    ]
+  },
+  {
+    "id": "story-6",
+    "title": "Export-ready evidence",
+    "viewport": "1440x900",
+    "clicks": 2,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/13-export-ready.png"
+    ],
+    "notes": [
+      "Export actions are grouped in the command palette to keep the top bar compact.",
+      "The next product step should add a decision memo export, not only raw data exports."
+    ]
+  },
+  {
+    "id": "story-7",
+    "title": "iPad map and controls balance",
+    "viewport": "820x1180",
+    "clicks": 2,
+    "screenshots": [
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/14-ipad-first-run.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/15-ipad-public-controls.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/16-ipad-generated.png",
+      "/Volumes/azssd/Development/mapgap/docs/reports/user-journeys/screenshots/17-ipad-table-context.png"
+    ],
+    "notes": [
+      "The tablet breakpoint avoids horizontal overflow and keeps the primary map usable.",
+      "Controls still use the drawer pattern; the next iteration should preserve more map context while editing profile details."
+    ]
+  }
+]
