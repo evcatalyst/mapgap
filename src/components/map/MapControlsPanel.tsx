@@ -38,14 +38,47 @@ const transportIcons: Record<TransportMode, typeof Car> = {
   "foot-walking": Footprints,
 };
 
-export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
+type MapControlsPanelProps = {
+  compact?: boolean;
+  showValhallaAccessSecret?: boolean;
+};
+
+export function ValhallaAccessSecretField() {
+  const settings = useMapIsoStore((state) => state.settings);
+  const status = useMapIsoStore((state) => state.status);
+  const setValhallaAccessSecret = useMapIsoStore((state) => state.setValhallaAccessSecret);
+
+  if (settings.routingProvider !== "valhalla" || !status.apiCapabilities.valhallaRequiresSecret) {
+    return null;
+  }
+
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+        <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+        Valhalla access secret
+      </span>
+      <Input
+        type="password"
+        value={settings.valhallaAccessSecret}
+        onChange={(event) => setValhallaAccessSecret(event.target.value)}
+        placeholder="Enter shared secret"
+        autoComplete="off"
+      />
+    </label>
+  );
+}
+
+export function MapControlsPanel({
+  compact = false,
+  showValhallaAccessSecret = true,
+}: MapControlsPanelProps) {
   const settings = useMapIsoStore((state) => state.settings);
   const status = useMapIsoStore((state) => state.status);
   const setIsochroneMode = useMapIsoStore((state) => state.setIsochroneMode);
   const setPreset = useMapIsoStore((state) => state.setPreset);
   const setTransportMode = useMapIsoStore((state) => state.setTransportMode);
   const setRoutingProvider = useMapIsoStore((state) => state.setRoutingProvider);
-  const setValhallaAccessSecret = useMapIsoStore((state) => state.setValhallaAccessSecret);
   const setMobilityMode = useMapIsoStore((state) => state.setMobilityMode);
   const setTimeBuckets = useMapIsoStore((state) => state.setTimeBuckets);
   const setTimeMinutes = useMapIsoStore((state) => state.setTimeMinutes);
@@ -117,21 +150,7 @@ export function MapControlsPanel({ compact = false }: { compact?: boolean }) {
           </div>
         </div>
 
-        {settings.routingProvider === "valhalla" && status.apiCapabilities.valhallaRequiresSecret && (
-          <label className="block">
-            <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
-              <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
-              Valhalla access secret
-            </span>
-            <Input
-              type="password"
-              value={settings.valhallaAccessSecret}
-              onChange={(event) => setValhallaAccessSecret(event.target.value)}
-              placeholder="Enter shared secret"
-              autoComplete="off"
-            />
-          </label>
-        )}
+        {showValhallaAccessSecret && <ValhallaAccessSecretField />}
 
         <div>
           <p className="mb-2 block text-xs font-medium text-neutral-500">Access profile</p>

@@ -15,13 +15,21 @@ import {
   isRoutingProviderReady,
 } from "../../lib/routingStatus";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
+import { MobileControlPanel } from "../mobile/MobileControlPanel";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Separator } from "../ui/separator";
 import { ScenarioSelector } from "../scenarios/ScenarioSelector";
 import { WorkflowPanel } from "../workflow/WorkflowPanel";
+import { AskMapGapPanel } from "../ask/AskMapGapPanel";
+import { AssetAuditPanel } from "../assets/AssetAuditPanel";
+import { CandidateZonesPanel } from "../candidates/CandidateZonesPanel";
 import { MapControlsPanel } from "../map/MapControlsPanel";
+import { ObservabilityReportPanel } from "../observability/ObservabilityReportPanel";
+import { PoiLayerWorkbench } from "../poi/PoiLayerWorkbench";
+import { ProfilePanel } from "../profile/ProfilePanel";
+import { MapSearchBox } from "../search/MapSearchBox";
 
 type AppSidebarProps = {
   mobile?: boolean;
@@ -39,10 +47,35 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   const valhallaAccessReady = isValhallaAccessReady(status, settings);
   const canGenerate = routingReady && valhallaAccessReady && points.length > 0;
   const anyRoutingReady = isAnyRoutingProviderReady(status);
+  const actionButtons = (
+    <div className="grid gap-2">
+      <Button type="button" variant="secondary" onClick={() => setCommandPaletteOpen(true)}>
+        <Upload className="h-4 w-4" aria-hidden="true" />
+        Add or import locations
+      </Button>
+      <Button
+        type="button"
+        variant={canGenerate ? "primary" : "secondary"}
+        onClick={() => generateIsochrones()}
+        disabled={!canGenerate || isGeneratingIsochrones}
+      >
+        <Route className="h-4 w-4" aria-hidden="true" />
+        {!routingReady
+          ? "Connect routing provider"
+          : !valhallaAccessReady
+            ? getValhallaAccessRequiredMessage()
+            : "Generate access heatmap"}
+      </Button>
+    </div>
+  );
+
+  if (mobile) {
+    return <MobileControlPanel />;
+  }
 
   if (!sidebarOpen && !mobile) {
     return (
-      <aside className="hidden w-[76px] shrink-0 border-r border-neutral-200 bg-white px-3 py-4 dark:border-neutral-800 dark:bg-neutral-950 lg:flex lg:flex-col lg:items-center lg:gap-3">
+      <aside className="hidden w-[76px] shrink-0 border-r border-neutral-200 bg-white px-3 py-4 dark:border-neutral-800 dark:bg-neutral-950 xl:flex xl:flex-col xl:items-center xl:gap-3">
         <span className="grid h-11 w-11 place-items-center rounded-lg bg-emerald-500 text-white shadow-sm">
           <MapPinned className="h-5 w-5" aria-hidden="true" />
         </span>
@@ -56,7 +89,7 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
   }
 
   return (
-    <aside className={mobile ? "flex h-full flex-col bg-stone-50 text-neutral-950 dark:bg-neutral-950 dark:text-white" : "hidden w-[360px] shrink-0 border-r border-neutral-200 bg-stone-50 text-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white lg:flex lg:flex-col"}>
+    <aside className="hidden w-[360px] shrink-0 border-r border-neutral-200 bg-stone-50 text-neutral-950 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white xl:flex xl:flex-col">
       <div className="border-b border-neutral-200 px-5 py-4 dark:border-neutral-800">
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-lg bg-emerald-500 text-white shadow-sm">
@@ -73,6 +106,13 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
 
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
         <ScenarioSelector />
+        <MapSearchBox compact />
+        <AskMapGapPanel compact />
+        <PoiLayerWorkbench compact />
+        <ProfilePanel />
+        <ObservabilityReportPanel />
+        <AssetAuditPanel />
+        <CandidateZonesPanel />
 
         <Card>
           <CardHeader>
@@ -106,28 +146,10 @@ export function AppSidebar({ mobile = false }: AppSidebarProps) {
           </CardContent>
         </Card>
 
-        <div className="grid gap-2">
-          <Button type="button" variant="secondary" onClick={() => setCommandPaletteOpen(true)}>
-            <Upload className="h-4 w-4" aria-hidden="true" />
-            Add or import locations
-          </Button>
-          <Button
-            type="button"
-            variant={canGenerate ? "primary" : "secondary"}
-            onClick={generateIsochrones}
-            disabled={!canGenerate || isGeneratingIsochrones}
-          >
-            <Route className="h-4 w-4" aria-hidden="true" />
-            {!routingReady
-              ? "Connect routing provider"
-              : !valhallaAccessReady
-                ? getValhallaAccessRequiredMessage()
-                : "Generate access heatmap"}
-          </Button>
-        </div>
+        {!mobile && actionButtons}
 
         <Separator />
-        <MapControlsPanel compact />
+        <MapControlsPanel compact showValhallaAccessSecret={!mobile} />
         <Separator />
         <WorkflowPanel />
 

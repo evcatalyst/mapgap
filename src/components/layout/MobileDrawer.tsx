@@ -9,7 +9,7 @@ export function MobileDrawer() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 1023px)");
+    const query = window.matchMedia("(max-width: 1279px)");
     const update = () => setIsMobile(query.matches);
 
     update();
@@ -22,10 +22,10 @@ export function MobileDrawer() {
   }
 
   return (
-    <div className="lg:hidden">
+    <div className="xl:hidden">
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
-          <div className="h-full overflow-y-auto">
+          <div className="h-full min-h-0 overflow-hidden">
             <AppSidebar mobile />
           </div>
         </SheetContent>

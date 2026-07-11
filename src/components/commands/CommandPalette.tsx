@@ -1,8 +1,14 @@
 import { useRef } from "react";
 import toast from "react-hot-toast";
 import { DEFAULT_CENTER } from "../../constants";
-import { parsePointsCsv } from "../../lib/csv";
-import { exportCsv, exportGeoJson, exportPng } from "../../lib/exports";
+import { parsePointsCsvDetailed } from "../../lib/csv";
+import {
+  exportCsv,
+  exportDecisionMemoMarkdown,
+  exportGeoJson,
+  exportPng,
+} from "../../lib/exports";
+import { buildShareUrl, createShareSnapshot } from "../../lib/shareSnapshot";
 import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import {
@@ -21,10 +27,14 @@ export function CommandPalette() {
   const open = useMapIsoStore((state) => state.commandPaletteOpen);
   const setOpen = useMapIsoStore((state) => state.setCommandPaletteOpen);
   const points = useMapIsoStore((state) => state.points);
+  const poiLayers = useMapIsoStore((state) => state.poiLayers);
+  const candidateHomes = useMapIsoStore((state) => state.candidateHomes);
   const isochrones = useMapIsoStore((state) => state.isochrones);
+  const settings = useMapIsoStore((state) => state.settings);
+  const decisionProfile = useMapIsoStore((state) => state.decisionProfile);
   const addPoint = useMapIsoStore((state) => state.addPoint);
   const addImportedPoints = useMapIsoStore((state) => state.addImportedPoints);
-  const clearPoints = useMapIsoStore((state) => state.clearPoints);
+  const clearAll = useMapIsoStore((state) => state.clearAll);
   const toggleTheme = useMapIsoStore((state) => state.toggleTheme);
   const setLayoutMode = useMapIsoStore((state) => state.setLayoutMode);
   const setLastExported = useMapIsoStore((state) => state.setLastExported);
@@ -43,15 +53,19 @@ export function CommandPalette() {
 
     try {
       const text = await file.text();
-      const parsed = parsePointsCsv(text);
+      const parsed = parsePointsCsvDetailed(text);
 
-      if (parsed.length === 0) {
+      if (parsed.points.length === 0) {
         toast.error("No valid latitude/longitude rows found.");
         return;
       }
 
-      addImportedPoints(parsed);
-      toast.success(`Imported ${parsed.length} point${parsed.length === 1 ? "" : "s"}.`);
+      addImportedPoints(parsed.points);
+      toast.success(
+        `Imported ${parsed.points.length} point${
+          parsed.points.length === 1 ? "" : "s"
+        }${parsed.skippedRows ? `; skipped ${parsed.skippedRows} row${parsed.skippedRows === 1 ? "" : "s"}` : ""}.`,
+      );
     } catch (error) {
       toast.error("CSV import failed.");
     } finally {
@@ -92,13 +106,47 @@ export function CommandPalette() {
     toast.success("CSV exported.");
   };
 
+  const exportMemoCommand = () => {
+    exportDecisionMemoMarkdown({
+      profile: decisionProfile,
+      candidates: candidateHomes,
+      poiLayers,
+      points,
+      isochrones,
+      settings,
+    });
+    setLastExported("memo");
+    toast.success("Decision memo exported.");
+  };
+
+  const shareSnapshotCommand = async () => {
+    const url = buildShareUrl(
+      createShareSnapshot({
+        scenario: settings.selectedScenario || decisionProfile.scenarioId,
+        settings,
+        points,
+      }),
+    );
+
+    window.history.replaceState(null, "", url);
+
+    try {
+      await navigator.clipboard?.writeText(url);
+      toast.success("Share link copied.");
+    } catch {
+      toast.success("Share link added to the address bar.");
+    }
+  };
+
   const IconAdd = commandIcons.addPoint;
   const IconImport = commandIcons.importCsv;
   const IconGenerate = commandIcons.generate;
   const IconClear = commandIcons.clear;
   const IconCsv = commandIcons.exportCsv;
   const IconGeoJson = commandIcons.exportGeoJson;
+  const IconMemo = commandIcons.exportMemo;
   const IconPng = commandIcons.exportPng;
+  const IconShare = commandIcons.share;
   const IconTheme = commandIcons.theme;
   const IconLayout = commandIcons.layout;
 
@@ -137,9 +185,9 @@ export function CommandPalette() {
                   <IconImport className="h-4 w-4" aria-hidden="true" />
                   Import CSV
                 </CommandItem>
-                <CommandItem onSelect={() => run(clearPoints)}>
+                <CommandItem onSelect={() => run(clearAll)}>
                   <IconClear className="h-4 w-4" aria-hidden="true" />
-                  Clear map
+                  Clear all
                 </CommandItem>
               </CommandGroup>
               <CommandGroup heading="Isochrones">
@@ -157,9 +205,19 @@ export function CommandPalette() {
                   <IconGeoJson className="h-4 w-4" aria-hidden="true" />
                   Export GeoJSON
                 </CommandItem>
+                <CommandItem onSelect={() => run(exportMemoCommand)}>
+                  <IconMemo className="h-4 w-4" aria-hidden="true" />
+                  Export decision memo
+                </CommandItem>
                 <CommandItem onSelect={() => run(exportPngCommand)}>
                   <IconPng className="h-4 w-4" aria-hidden="true" />
                   Export PNG
+                </CommandItem>
+              </CommandGroup>
+              <CommandGroup heading="Share">
+                <CommandItem onSelect={() => run(shareSnapshotCommand)}>
+                  <IconShare className="h-4 w-4" aria-hidden="true" />
+                  Share snapshot link
                 </CommandItem>
               </CommandGroup>
               <CommandGroup heading="View">
