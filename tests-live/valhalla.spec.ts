@@ -185,6 +185,24 @@ test.describe("Live /v2 public demo endpoints", () => {
     expect(names).not.toMatch(/carpet|janitorial|maid|dry\s*clean/i);
   });
 
+  test("published dog-park search verifies Blatnick and excludes River Road Town Park", async ({
+    request,
+  }) => {
+    const response = await request.get(
+      `${liveBaseUrl}/api/service-points?category=custom&q=dog%20parks&bbox=-73.91,42.72,-73.74,42.84&check=${Date.now()}`,
+    );
+
+    expect(response.ok()).toBe(true);
+    const data = await response.json();
+    const names = data.points.map((point: { name: string }) => point.name);
+
+    expect(data.sources).toContain("official_local");
+    expect(data.sources).toContain("openstreetmap");
+    expect(names).toContain("Niskayuna Dog Park (Blatnick Park)");
+    expect(names).toContain("Town of Colonie Dog Park");
+    expect(names).not.toContain("River Road Town Park");
+  });
+
   for (const path of ["/v2/relocate", "/v2/audit"]) {
     test(`published ${path} focused workflow is routable`, async ({ page }) => {
       await page.goto(`${liveBaseUrl}${path}`);
