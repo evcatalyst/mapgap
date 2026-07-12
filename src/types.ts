@@ -90,6 +90,20 @@ export type ServicePointSource =
 
 export type ServicePointConfidence = "high" | "medium" | "low";
 
+export type ServicePointMatch = {
+  tier: "primary" | "related" | "fallback";
+  subclassification?: string;
+  extensionId?: string;
+  reason: string;
+  conditions?: string[];
+};
+
+export type ServicePointExtension = {
+  id: string;
+  label: string;
+  description: string;
+};
+
 export type DrawerMode =
   | "closed"
   | "categoryPicker"
@@ -116,6 +130,7 @@ export type ServicePoint = {
   sourceUpdatedAt?: string;
   jurisdiction?: "NY" | "NJ";
   confidence?: ServicePointConfidence;
+  match?: ServicePointMatch;
   provenance?: {
     label?: string;
     datasetId?: string;
@@ -136,6 +151,8 @@ export type ServicePointResponse = {
   count: number;
   sources: ServicePointSource[];
   points: ServicePoint[];
+  extensions?: ServicePointExtension[];
+  activeExtensions?: string[];
   warnings?: string[];
 };
 
