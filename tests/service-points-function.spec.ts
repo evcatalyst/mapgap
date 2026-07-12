@@ -433,6 +433,12 @@ test("service-points uses typed OSM dog parks and verifies the Blatnick Park fac
             center: { lat: 42.8019098, lon: -73.8626843 },
             tags: { leisure: "park", name: "River Road Town Park" },
           },
+          {
+            type: "way",
+            id: 1000,
+            center: { lat: 42.781, lon: -73.81 },
+            tags: { dog: "leashed", leisure: "park", name: "Leash-Friendly Community Park" },
+          },
         ],
       });
     }
@@ -454,8 +460,13 @@ test("service-points uses typed OSM dog parks and verifies the Blatnick Park fac
   expect(response.statusCode).toBe(200);
   expect(googleCalls).toBe(0);
   expect(overpassCalls).toHaveLength(2);
+  expect(decodeURIComponent(overpassCalls[1])).toContain('["dog"~"^(yes|leashed)$"]');
   expect(body.count).toBe(2);
   expect(body.sources).toEqual(["official_local", "openstreetmap"]);
+  expect(body.extensions.map((extension) => extension.id)).toEqual([
+    "leashed_parks",
+    "dog_friendly_parks",
+  ]);
   expect(body.points[0]).toMatchObject({
     name: "Niskayuna Dog Park (Blatnick Park)",
     source: "official_local",
@@ -465,8 +476,110 @@ test("service-points uses typed OSM dog parks and verifies the Blatnick Park fac
   expect(body.points[1]).toMatchObject({
     name: "Town of Colonie Dog Park",
     source: "openstreetmap",
+    match: { tier: "primary" },
   });
   expect(body.warnings || []).toEqual([]);
+
+  const extended = await callServicePoints({
+    category: "custom",
+    q: "dog parks",
+    include: "leashed_parks",
+    bbox: "-73.91,42.72,-73.74,42.84",
+  });
+
+  expect(googleCalls).toBe(0);
+  expect(overpassCalls).toHaveLength(4);
+  expect(extended.body.count).toBe(3);
+  expect(extended.body.activeExtensions).toEqual(["leashed_parks"]);
+  expect(extended.body.points[2]).toMatchObject({
+    name: "Leash-Friendly Community Park",
+    source: "openstreetmap",
+    categoryLabel: "Dog-friendly parks",
+    match: {
+      tier: "related",
+      extensionId: "leashed_parks",
+      conditions: ["Leash required", "Not a dedicated dog park"],
+    },
+  });
+  expect(extended.body.warnings || []).toContain(
+    "Extended with 1 park where mapped dog-access rules apply. Dedicated dog parks remain first.",
+  );
+});
+
+test("grocery result extensions are opt-in and keep convenience stores separate", async () => {
+  process.env.GOOGLE_PLACES_API_KEY = "test-google-key";
+  const requestedTypes: string[][] = [];
+
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+
+    if (url.includes("places.googleapis.com/v1/places:searchNearby")) {
+      const requestBody = JSON.parse(String(init?.body || "{}"));
+      requestedTypes.push(requestBody.includedTypes || []);
+
+      return jsonResponse({
+        places: [
+          {
+            id: "full-grocery",
+            displayName: { text: "Capital Region Supermarket" },
+            formattedAddress: "1 Main St",
+            location: { latitude: 42.78, longitude: -73.84 },
+            types: ["supermarket", "grocery_store"],
+          },
+          {
+            id: "specialty-market",
+            displayName: { text: "Schenectady Trading Post" },
+            formattedAddress: "2 Main St",
+            location: { latitude: 42.79, longitude: -73.85 },
+            types: ["market", "food_store"],
+          },
+          {
+            id: "corner-store",
+            displayName: { text: "Neighborhood Corner Store" },
+            formattedAddress: "3 Main St",
+            location: { latitude: 42.77, longitude: -73.83 },
+            types: ["convenience_store"],
+          },
+        ],
+      });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  const primary = await callServicePoints({
+    category: "grocery",
+    bbox: "-73.91,42.72,-73.74,42.84",
+  });
+
+  expect(primary.body.points.map((point) => point.name)).toEqual([
+    "Capital Region Supermarket",
+  ]);
+  expect(primary.body.extensions.map((extension) => extension.id)).toEqual([
+    "specialty_food",
+    "convenience_food",
+  ]);
+  expect(requestedTypes[0]).toEqual(["grocery_store", "supermarket"]);
+
+  const specialty = await callServicePoints({
+    category: "grocery",
+    include: "specialty_food",
+    bbox: "-73.91,42.72,-73.74,42.84",
+  });
+
+  expect(specialty.body.points.map((point) => point.name)).toEqual([
+    "Capital Region Supermarket",
+    "Schenectady Trading Post",
+  ]);
+  expect(specialty.body.points[1].match).toMatchObject({
+    tier: "related",
+    extensionId: "specialty_food",
+    subclassification: "Specialty food store",
+  });
+  expect(requestedTypes[1]).toEqual(
+    expect.arrayContaining(["grocery_store", "supermarket", "asian_grocery_store", "market"]),
+  );
+  expect(requestedTypes[1]).not.toContain("convenience_store");
 });
 
 test("service-points excludes cleaning services and dry-clean-only laundry results", async () => {

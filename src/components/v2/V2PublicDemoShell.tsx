@@ -19,6 +19,7 @@ import {
   Shirt,
   ShoppingBasket,
   Sparkles,
+  ThumbsUp,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -44,6 +45,7 @@ import type {
   MapBounds,
   ServicePoint,
   ServicePointCategory,
+  ServicePointExtension,
   ServicePointSource,
 } from "../../types";
 import { MapCanvas } from "../map/MapCanvas";
@@ -72,6 +74,7 @@ const FALLBACK_BOUNDS: MapBounds = {
 const HEATMAP_POINT_LIMIT = 20;
 const WALK_REACH_OPTIONS = [5, 10, 20] as const;
 const DEFAULT_WALK_REACH_MINUTES = 10;
+const BOOSTED_SERVICE_POINTS_KEY = "mapgap-v2-boosted-service-points";
 
 type WalkReachMinutes = (typeof WALK_REACH_OPTIONS)[number];
 
@@ -79,13 +82,30 @@ function getWalkTimeBuckets(minutes: WalkReachMinutes) {
   return [5, 10, 15, 20].filter((bucket) => bucket <= minutes);
 }
 
+function getStoredBoostedPointIds() {
+  if (typeof window === "undefined") {
+    return new Set<string>();
+  }
+
+  try {
+    const value = JSON.parse(window.localStorage.getItem(BOOSTED_SERVICE_POINTS_KEY) || "[]");
+    return new Set<string>(Array.isArray(value) ? value.filter((id) => typeof id === "string") : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
 type PointsState = {
+  activeExtensions: string[];
+  extensions: ServicePointExtension[];
   points: ServicePoint[];
   sources: ServicePointSource[];
   warnings: string[];
 };
 
 const EMPTY_POINTS_STATE: PointsState = {
+  activeExtensions: [],
+  extensions: [],
   points: [],
   sources: [],
   warnings: [],
@@ -111,6 +131,7 @@ const SERVICE_POINT_CATEGORIES: ServicePointCategory[] = [
 type LastSearch = {
   bounds: MapBounds;
   category: ServicePointCategory;
+  extensions: string[];
   query?: string;
 };
 
@@ -176,6 +197,7 @@ export function V2PublicDemoShell() {
   const [walkReachMinutes, setWalkReachMinutes] = useState<WalkReachMinutes>(
     DEFAULT_WALK_REACH_MINUTES,
   );
+  const [boostedPointIds, setBoostedPointIds] = useState(getStoredBoostedPointIds);
   const [pointsState, setPointsState] = useState<PointsState>(EMPTY_POINTS_STATE);
   const [requestStatus, setRequestStatus] = useState<AsyncStatus>("idle");
   const [requestError, setRequestError] = useState<string | undefined>();
@@ -252,6 +274,7 @@ export function V2PublicDemoShell() {
 
     restoredUrlSearchRef.current = true;
     const query = url.searchParams.get("q") || undefined;
+    const extensions = (url.searchParams.get("include") || "").split(",").filter(Boolean);
     const sharedBounds = parseBoundsParam(url.searchParams.get("bbox"));
 
     if (sharedBounds) {
@@ -268,7 +291,7 @@ export function V2PublicDemoShell() {
       }
     }
 
-    void chooseCategory(category, query, sharedBounds || activeBounds);
+    void chooseCategory(category, query, sharedBounds || activeBounds, extensions);
   }, [activeBounds, setMapJumpTarget]);
 
   function setDrawerModeWithHistory(nextMode: DrawerMode, options?: { replace?: boolean }) {
@@ -289,7 +312,12 @@ export function V2PublicDemoShell() {
     }
   }
 
-  function syncSearchUrl(category: ServicePointCategory, query: string | undefined, bounds: MapBounds) {
+  function syncSearchUrl(
+    category: ServicePointCategory,
+    query: string | undefined,
+    bounds: MapBounds,
+    extensions: string[],
+  ) {
     const url = new URL(window.location.href);
     url.searchParams.set("category", category);
     url.searchParams.set("bbox", formatBoundsParam(bounds));
@@ -298,6 +326,12 @@ export function V2PublicDemoShell() {
       url.searchParams.set("q", query);
     } else {
       url.searchParams.delete("q");
+    }
+
+    if (extensions.length > 0) {
+      url.searchParams.set("include", extensions.join(","));
+    } else {
+      url.searchParams.delete("include");
     }
 
     window.history.replaceState(
@@ -315,6 +349,7 @@ export function V2PublicDemoShell() {
     url.searchParams.delete("category");
     url.searchParams.delete("q");
     url.searchParams.delete("bbox");
+    url.searchParams.delete("include");
     window.history.replaceState(
       {
         ...(window.history.state || {}),
@@ -329,6 +364,7 @@ export function V2PublicDemoShell() {
     category: ServicePointCategory,
     query?: string,
     boundsOverride?: MapBounds,
+    extensionsOverride: string[] = [],
   ) {
     const boundsForSearch = boundsOverride || activeBounds;
     const cleanedQuery = query?.trim();
@@ -349,20 +385,24 @@ export function V2PublicDemoShell() {
     setLastSearch({
       bounds: boundsForSearch,
       category,
+      extensions: extensionsOverride,
       query: cleanedQuery,
     });
-    syncSearchUrl(category, cleanedQuery, boundsForSearch);
+    syncSearchUrl(category, cleanedQuery, boundsForSearch, extensionsOverride);
     clearIsochrones();
 
     try {
       const response = await fetchServicePoints({
         category,
         bounds: boundsForSearch,
+        extensions: extensionsOverride,
         query: cleanedQuery,
       });
 
       setSelectedLabel(response.label || nextLabel);
       setPointsState({
+        activeExtensions: response.activeExtensions || extensionsOverride,
+        extensions: response.extensions || [],
         points: response.points,
         sources: response.sources,
         warnings: response.warnings || [],
@@ -431,7 +471,29 @@ export function V2PublicDemoShell() {
       return;
     }
 
-    void chooseCategory(selectedCategory, selectedQuery, activeBounds);
+    void chooseCategory(
+      selectedCategory,
+      selectedQuery,
+      activeBounds,
+      pointsState.activeExtensions,
+    );
+  }
+
+  function toggleResultExtension(extensionId: string) {
+    if (!selectedCategory) {
+      return;
+    }
+
+    const nextExtensions = pointsState.activeExtensions.includes(extensionId)
+      ? pointsState.activeExtensions.filter((id) => id !== extensionId)
+      : [...pointsState.activeExtensions, extensionId];
+
+    void chooseCategory(
+      selectedCategory,
+      selectedQuery,
+      lastSearch?.bounds || activeBounds,
+      nextExtensions,
+    );
   }
 
   async function shareCurrentView() {
@@ -514,6 +576,21 @@ export function V2PublicDemoShell() {
     }
   }
 
+  function togglePointBoost(pointId: string) {
+    setBoostedPointIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(pointId)) {
+        next.delete(pointId);
+      } else {
+        next.add(pointId);
+      }
+
+      window.localStorage.setItem(BOOSTED_SERVICE_POINTS_KEY, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
+
   function exportResults(scope: "selected" | "all") {
     const points = scope === "selected" && selectedPoint ? [selectedPoint] : pointsState.points;
 
@@ -592,7 +669,9 @@ export function V2PublicDemoShell() {
 
       {drawerMode !== "closed" && (
         <BottomDrawer
+          activeExtensions={pointsState.activeExtensions}
           category={selectedCategory}
+          boostedPointIds={boostedPointIds}
           categoryLabel={selectedCategoryLabel}
           drawerMode={drawerMode}
           heatmapMessage={heatmapMessage}
@@ -603,6 +682,8 @@ export function V2PublicDemoShell() {
           onClose={() => setDrawerModeWithHistory("closed", { replace: true })}
           onExport={exportResults}
           onHeatmapChange={updateHeatmap}
+          onTogglePointBoost={togglePointBoost}
+          onToggleResultExtension={toggleResultExtension}
           onWalkReachChange={updateWalkReach}
           onOpenCategories={() => setDrawerModeWithHistory("categoryPicker")}
           onReset={resetNearbySearch}
@@ -615,6 +696,7 @@ export function V2PublicDemoShell() {
           isSearchStale={isSearchStale}
           selectedPoint={selectedPoint}
           sources={pointsState.sources}
+          extensions={pointsState.extensions}
           warnings={pointsState.warnings}
           walkReachMinutes={walkReachMinutes}
           onRefreshSearch={refreshCurrentSearch}
@@ -659,6 +741,8 @@ function PublicTopBar({ routingAvailable }: { routingAvailable: boolean }) {
 }
 
 type BottomDrawerProps = {
+  activeExtensions: string[];
+  boostedPointIds: Set<string>;
   category: ServicePointCategory | null;
   categoryLabel?: string;
   drawerMode: DrawerMode;
@@ -671,6 +755,8 @@ type BottomDrawerProps = {
   onClose: () => void;
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onTogglePointBoost: (pointId: string) => void;
+  onToggleResultExtension: (extensionId: string) => void;
   onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onOpenCategories: () => void;
   onRefreshSearch: () => void;
@@ -683,12 +769,15 @@ type BottomDrawerProps = {
   requestError?: string;
   requestStatus: AsyncStatus;
   selectedPoint?: ServicePoint;
+  extensions: ServicePointExtension[];
   sources: ServicePointSource[];
   warnings: string[];
   walkReachMinutes: WalkReachMinutes;
 };
 
 function BottomDrawer({
+  activeExtensions,
+  boostedPointIds,
   category,
   categoryLabel,
   drawerMode,
@@ -701,6 +790,8 @@ function BottomDrawer({
   onClose,
   onExport,
   onHeatmapChange,
+  onTogglePointBoost,
+  onToggleResultExtension,
   onWalkReachChange,
   onOpenCategories,
   onRefreshSearch,
@@ -713,6 +804,7 @@ function BottomDrawer({
   requestError,
   requestStatus,
   selectedPoint,
+  extensions,
   sources,
   warnings,
   walkReachMinutes,
@@ -819,6 +911,8 @@ function BottomDrawer({
           drawerMode === "resultsHalf" ||
           drawerMode === "evidenceFull") && (
           <ResultsContent
+            activeExtensions={activeExtensions}
+            boostedPointIds={boostedPointIds}
             category={category}
             categoryLabel={categoryLabel}
             heatmapMessage={heatmapMessage}
@@ -827,6 +921,8 @@ function BottomDrawer({
             mapCenter={mapCenter}
             onExport={onExport}
             onHeatmapChange={onHeatmapChange}
+            onTogglePointBoost={onTogglePointBoost}
+            onToggleResultExtension={onToggleResultExtension}
             onWalkReachChange={onWalkReachChange}
             onOpenCategories={onOpenCategories}
             onRefreshSearch={onRefreshSearch}
@@ -839,6 +935,7 @@ function BottomDrawer({
             isSearchStale={isSearchStale}
             showList={drawerMode !== "resultsPeek"}
             sources={sources}
+            extensions={extensions}
             warnings={warnings}
             walkReachMinutes={walkReachMinutes}
           />
@@ -846,11 +943,13 @@ function BottomDrawer({
 
         {drawerMode === "poiDetail" && selectedPoint && (
           <PointDetail
+            boosted={boostedPointIds.has(selectedPoint.id)}
             heatmapMode={heatmapMode}
             isGeneratingIsochrones={isGeneratingIsochrones}
             mapCenter={mapCenter}
             onExport={onExport}
             onHeatmapChange={onHeatmapChange}
+            onTogglePointBoost={() => onTogglePointBoost(selectedPoint.id)}
             onWalkReachChange={onWalkReachChange}
             onSelectNextPoint={onSelectNextPoint}
             onSetDrawerMode={onSetDrawerMode}
@@ -944,6 +1043,8 @@ function CategoryPicker({
 }
 
 function ResultsContent({
+  activeExtensions,
+  boostedPointIds,
   category,
   categoryLabel,
   heatmapMessage,
@@ -953,6 +1054,8 @@ function ResultsContent({
   mapCenter,
   onExport,
   onHeatmapChange,
+  onTogglePointBoost,
+  onToggleResultExtension,
   onWalkReachChange,
   onOpenCategories,
   onRefreshSearch,
@@ -964,9 +1067,12 @@ function ResultsContent({
   requestStatus,
   showList,
   sources,
+  extensions,
   warnings,
   walkReachMinutes,
 }: {
+  activeExtensions: string[];
+  boostedPointIds: Set<string>;
   category: ServicePointCategory | null;
   categoryLabel?: string;
   heatmapMessage?: string;
@@ -976,6 +1082,8 @@ function ResultsContent({
   mapCenter?: { lat: number; lng: number };
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onTogglePointBoost: (pointId: string) => void;
+  onToggleResultExtension: (extensionId: string) => void;
   onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onOpenCategories: () => void;
   onRefreshSearch: () => void;
@@ -987,6 +1095,7 @@ function ResultsContent({
   requestStatus: AsyncStatus;
   showList: boolean;
   sources: ServicePointSource[];
+  extensions: ServicePointExtension[];
   warnings: string[];
   walkReachMinutes: WalkReachMinutes;
 }) {
@@ -995,6 +1104,15 @@ function ResultsContent({
   );
   const visibleMessages = messages.slice(0, 2);
   const compactMessage = getCompactDrawerMessage(visibleMessages, messages.length);
+  const orderedPoints = useMemo(
+    () =>
+      [...points].sort(
+        (left, right) =>
+          Number(boostedPointIds.has(right.id)) - Number(boostedPointIds.has(left.id)),
+      ),
+    [boostedPointIds, points],
+  );
+  const extendedCount = points.filter((point) => Boolean(point.match?.extensionId)).length;
 
   return (
     <div className="space-y-3">
@@ -1058,6 +1176,42 @@ function ResultsContent({
         )}
       </div>
 
+      {extensions.length > 0 && (
+        <div className="rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              Broaden results
+            </span>
+            {extensions.map((extension) => {
+              const active = activeExtensions.includes(extension.id);
+
+              return (
+                <button
+                  key={extension.id}
+                  type="button"
+                  className={cn(
+                    "min-h-9 rounded-full border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+                    active
+                      ? "border-emerald-700 bg-emerald-700 text-white"
+                      : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200 dark:hover:bg-neutral-900",
+                  )}
+                  disabled={requestStatus === "loading"}
+                  onClick={() => onToggleResultExtension(extension.id)}
+                  aria-pressed={active}
+                  title={extension.description}
+                >
+                  {extension.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+            Start with the strongest matches. Add related subclasses only when they help your
+            decision; each added place explains why it qualified.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         {isSearchStale && (
           <Button type="button" variant="primary" size="sm" onClick={onRefreshSearch}>
@@ -1101,13 +1255,23 @@ function ResultsContent({
         </Button>
       </div>
 
+      {extendedCount > 0 && (
+        <p className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          Primary matches remain first. {extendedCount}{" "}
+          {extendedCount === 1 ? "related place is" : "related places are"} included through your
+          selected result extensions.
+        </p>
+      )}
+
       {showList && points.length > 0 && (
         <div className="divide-y divide-neutral-200 rounded-2xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-950">
-          {points.map((point) => (
+          {orderedPoints.map((point) => (
             <PointRow
               key={point.id}
+              boosted={boostedPointIds.has(point.id)}
               mapCenter={mapCenter}
               onSelectPoint={onSelectPoint}
+              onToggleBoost={() => onTogglePointBoost(point.id)}
               point={point}
             />
           ))}
@@ -1134,48 +1298,72 @@ function getCompactDrawerMessage(messages: string[], totalCount: number) {
 }
 
 function PointRow({
+  boosted,
   mapCenter,
   onSelectPoint,
+  onToggleBoost,
   point,
 }: {
+  boosted: boolean;
   mapCenter?: { lat: number; lng: number };
   onSelectPoint: (point: ServicePoint) => void;
+  onToggleBoost: () => void;
   point: ServicePoint;
 }) {
   const distance = formatDistanceMiles(getDistanceMiles(mapCenter, point.location));
 
   return (
-    <button
-      type="button"
-      className="flex w-full items-start gap-3 px-3 py-3 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 dark:hover:bg-neutral-900"
-      onClick={() => onSelectPoint(point)}
-    >
-      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
-        <MapPin className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-neutral-950 dark:text-neutral-50">
-          {point.name}
+    <div className="flex items-start transition hover:bg-neutral-50 dark:hover:bg-neutral-900">
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
+        onClick={() => onSelectPoint(point)}
+      >
+        <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+          <MapPin className="h-4 w-4" aria-hidden="true" />
         </span>
-        <span className="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">
-          {[distance, point.address].filter(Boolean).join(" · ")}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-neutral-950 dark:text-neutral-50">
+            {point.name}
+          </span>
+          <span className="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">
+            {[distance, point.address].filter(Boolean).join(" · ")}
+          </span>
+          <span className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="outline">
+              {point.provenance?.label || SERVICE_POINT_SOURCE_LABELS[point.source]}
+            </Badge>
+            {point.match?.extensionId && (
+              <Badge variant="warning">{point.match.subclassification || "Related"}</Badge>
+            )}
+            {boosted && <Badge variant="success">Boosted for you</Badge>}
+          </span>
         </span>
-        <span className="mt-2 inline-flex">
-          <Badge variant="outline">
-            {point.provenance?.label || SERVICE_POINT_SOURCE_LABELS[point.source]}
-          </Badge>
-        </span>
-      </span>
-    </button>
+      </button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="mr-2 mt-2 shrink-0 rounded-full"
+        onClick={onToggleBoost}
+        aria-label={`${boosted ? "Remove boost from" : "Boost"} ${point.name}`}
+        aria-pressed={boosted}
+        title="Keep useful places at the top on this device"
+      >
+        <ThumbsUp className={cn("h-4 w-4", boosted && "fill-current text-emerald-700")} aria-hidden="true" />
+      </Button>
+    </div>
   );
 }
 
 function PointDetail({
+  boosted,
   heatmapMode,
   isGeneratingIsochrones,
   mapCenter,
   onExport,
   onHeatmapChange,
+  onTogglePointBoost,
   onWalkReachChange,
   onSelectNextPoint,
   onSetDrawerMode,
@@ -1183,11 +1371,13 @@ function PointDetail({
   point,
   walkReachMinutes,
 }: {
+  boosted: boolean;
   heatmapMode: HeatmapMode;
   isGeneratingIsochrones: boolean;
   mapCenter?: { lat: number; lng: number };
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onTogglePointBoost: () => void;
   onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onSelectNextPoint: () => void;
   onSetDrawerMode: (mode: DrawerMode) => void;
@@ -1207,12 +1397,34 @@ function PointDetail({
           <Badge variant="success">
             {point.provenance?.label || SERVICE_POINT_SOURCE_LABELS[point.source]}
           </Badge>
+          {point.match?.subclassification && (
+            <Badge variant={point.match.extensionId ? "warning" : "default"}>
+              {point.match.subclassification}
+            </Badge>
+          )}
           {distance && <Badge variant="outline">{distance}</Badge>}
         </div>
         {point.address && (
           <p className="mt-3 text-sm leading-6 text-neutral-700 dark:text-neutral-300">
             {point.address}
           </p>
+        )}
+        {point.match && (
+          <div className="mt-3 border-t border-neutral-200 pt-3 text-sm dark:border-neutral-800">
+            <p className="font-semibold text-neutral-900 dark:text-neutral-100">Why included</p>
+            <p className="mt-1 leading-5 text-neutral-600 dark:text-neutral-300">
+              {point.match.reason}
+            </p>
+            {point.match.conditions && point.match.conditions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {point.match.conditions.map((condition) => (
+                  <Badge key={condition} variant="warning">
+                    {condition}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1244,6 +1456,15 @@ function PointDetail({
       </div>
 
       <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant={boosted ? "primary" : "secondary"}
+          onClick={onTogglePointBoost}
+          aria-pressed={boosted}
+        >
+          <ThumbsUp className={cn("h-4 w-4", boosted && "fill-current")} aria-hidden="true" />
+          {boosted ? "Boosted for me" : "Boost for me"}
+        </Button>
         <Button type="button" variant="secondary" onClick={onSelectNextPoint}>
           <Navigation className="h-4 w-4" aria-hidden="true" />
           Next nearby

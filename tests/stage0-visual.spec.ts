@@ -143,6 +143,82 @@ async function mockAppRoutes(
     const responseLabel = responseLabels[category] || resultLabel;
     const source = category === "library" ? "nj_libraries" : "google_places";
     const sourceLabel = category === "library" ? "NJ Open Data" : "Google Places";
+    const activeExtensions = (url.searchParams.get("include") || "").split(",").filter(Boolean);
+    const dogSearch = category === "custom" && customQuery.toLowerCase().includes("dog");
+    const extensions =
+      category === "grocery"
+        ? [
+            {
+              id: "specialty_food",
+              label: "Specialty food stores",
+              description: "Focused food retailers.",
+            },
+            {
+              id: "convenience_food",
+              label: "Convenience stores",
+              description: "Smaller last-mile food options.",
+            },
+          ]
+        : dogSearch
+          ? [
+              {
+                id: "leashed_parks",
+                label: "Leash-required parks",
+                description: "Regular parks where dogs are allowed on leash.",
+              },
+            ]
+          : [];
+    const basePoints = [
+      {
+        id: `${source}-${category}-1`,
+        name: `Viewport ${resultLabel} A`,
+        category,
+        categoryLabel: category === "custom" ? resultLabel : undefined,
+        location: { lat: 40.722, lng: -74.045 },
+        source,
+        address: "Current map view",
+        confidence: "high",
+        provenance: { label: sourceLabel },
+        match:
+          category === "grocery"
+            ? {
+                tier: "primary",
+                subclassification: "Full grocery",
+                reason: "Provider types identify this as a grocery store.",
+              }
+            : undefined,
+      },
+      {
+        id: `${source}-${category}-2`,
+        name: `Viewport ${resultLabel} B`,
+        category,
+        categoryLabel: category === "custom" ? resultLabel : undefined,
+        location: { lat: 40.714, lng: -74.052 },
+        source,
+        address: "Current map view",
+        confidence: "high",
+        provenance: { label: sourceLabel },
+        match: dogSearch
+          ? {
+              tier: "related",
+              extensionId: "leashed_parks",
+              subclassification: "Leash-required park",
+              reason: "Included because this park is mapped as allowing dogs on leash.",
+              conditions: ["Leash required", "Not a dedicated dog park"],
+            }
+          : category === "grocery"
+            ? {
+                tier: "related",
+                extensionId: "specialty_food",
+                subclassification: "Specialty food store",
+                reason: "Included as a focused food retailer.",
+              }
+            : undefined,
+      },
+    ];
+    const points = basePoints.filter(
+      (point) => !point.match?.extensionId || activeExtensions.includes(point.match.extensionId),
+    );
 
     await route.fulfill({
       contentType: "application/json",
@@ -151,32 +227,11 @@ async function mockAppRoutes(
         label: responseLabel,
         query: category === "custom" ? customQuery : undefined,
         bbox: [-74.08, 40.68, -74.02, 40.74],
-        count: 2,
+        count: points.length,
         sources: [source],
-        points: [
-          {
-            id: `${source}-${category}-1`,
-            name: `Viewport ${resultLabel} A`,
-            category,
-            categoryLabel: category === "custom" ? resultLabel : undefined,
-            location: { lat: 40.722, lng: -74.045 },
-            source,
-            address: "Current map view",
-            confidence: "high",
-            provenance: { label: sourceLabel },
-          },
-          {
-            id: `${source}-${category}-2`,
-            name: `Viewport ${resultLabel} B`,
-            category,
-            categoryLabel: category === "custom" ? resultLabel : undefined,
-            location: { lat: 40.714, lng: -74.052 },
-            source,
-            address: "Current map view",
-            confidence: "high",
-            provenance: { label: sourceLabel },
-          },
-        ],
+        points,
+        extensions,
+        activeExtensions,
         warnings: category === "library" ? ["Libraries loaded from NJ public source."] : [],
       }),
     });
@@ -482,7 +537,7 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(page.getByText("Viewport Laundromat A")).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole("button", { name: /Viewport Laundromat A/ }).click();
+    await page.getByRole("button", { name: /^Viewport Laundromat A/ }).click();
     await expect(drawer.getByRole("heading", { name: "Viewport Laundromat A" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
@@ -584,6 +639,56 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(drawer.getByText("Google Places").first()).toBeVisible();
     await drawer.getByRole("button", { name: "Nearby entries" }).click();
     await expect(page.getByText("Viewport pharmacies A")).toBeVisible();
+  });
+
+  test("v2 explains conditional dog-friendly parks and persists personal boosts", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByLabel("Custom category").fill("dog parks");
+    await drawer.getByRole("button", { name: "Search custom places" }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Leash-required parks" }).click();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+
+    await expect(drawer.getByText(/Primary matches remain first/)).toBeVisible();
+    await expect(drawer.getByText("Leash-required park", { exact: true })).toBeVisible();
+    await drawer.getByRole("button", { name: "Boost Viewport dog parks B" }).click();
+    await expect(drawer.getByText("Boosted for you")).toBeVisible();
+
+    await page.reload();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Boosted for you")).toBeVisible();
+    await expect(drawer.locator(".divide-y > div").first()).toContainText("Viewport dog parks B");
+  });
+
+  test("v2 keeps full groceries primary and lets users add specialty food stores", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Groceries/ }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Specialty food stores" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await drawer.getByRole("button", { name: "Specialty food stores" }).click();
+    await expect(drawer.getByText("2 places").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Specialty food store", { exact: true })).toBeVisible();
   });
 
   test("ipad v2 keeps the category drawer staged over a live map", async ({ page }) => {

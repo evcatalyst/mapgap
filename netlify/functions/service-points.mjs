@@ -65,6 +65,43 @@ const GOOGLE_TYPES = {
   library: ["library"],
 };
 
+const GROCERY_SPECIALTY_TYPES = [
+  "asian_grocery_store",
+  "butcher_shop",
+  "farmers_market",
+  "food_store",
+  "health_food_store",
+  "market",
+];
+const GROCERY_CONVENIENCE_TYPES = ["convenience_store", "general_store"];
+
+const RESULT_EXTENSIONS = {
+  grocery: [
+    {
+      id: "specialty_food",
+      label: "Specialty food stores",
+      description: "Asian groceries, butchers, farmers markets, and other focused food stores.",
+    },
+    {
+      id: "convenience_food",
+      label: "Convenience stores",
+      description: "Smaller convenience and general stores as a last-mile fallback.",
+    },
+  ],
+  dog_parks: [
+    {
+      id: "leashed_parks",
+      label: "Leash-required parks",
+      description: "Regular parks explicitly mapped as allowing dogs on leash.",
+    },
+    {
+      id: "dog_friendly_parks",
+      label: "Other dog-friendly parks",
+      description: "Parks mapped as allowing dogs; verify local leash rules.",
+    },
+  ],
+};
+
 const GOOGLE_TEXT_QUERIES = {
   laundry: "self-service laundromats",
   coffee: "coffee shops",
@@ -194,6 +231,39 @@ function isDogParkQuery(query) {
   return typeof query === "string" && DOG_PARK_QUERY_PATTERN.test(query);
 }
 
+function extensionsFor(category, query) {
+  if (category === "grocery") {
+    return RESULT_EXTENSIONS.grocery;
+  }
+
+  if (category === "custom" && isDogParkQuery(query)) {
+    return RESULT_EXTENSIONS.dog_parks;
+  }
+
+  return [];
+}
+
+function parseExtensions(raw, availableExtensions) {
+  const allowed = new Set(availableExtensions.map((extension) => extension.id));
+  const requested = typeof raw === "string" ? raw.split(",").map((value) => value.trim()) : [];
+
+  return Array.from(new Set(requested.filter((value) => allowed.has(value))));
+}
+
+function googleTypesFor(category, activeExtensions) {
+  const types = [...(GOOGLE_TYPES[category] || [])];
+
+  if (category === "grocery" && activeExtensions.includes("specialty_food")) {
+    types.push(...GROCERY_SPECIALTY_TYPES);
+  }
+
+  if (category === "grocery" && activeExtensions.includes("convenience_food")) {
+    types.push(...GROCERY_CONVENIENCE_TYPES);
+  }
+
+  return Array.from(new Set(types));
+}
+
 function bboxToApi(bounds) {
   return [bounds.minLng, bounds.minLat, bounds.maxLng, bounds.maxLat];
 }
@@ -310,6 +380,32 @@ function normalizeGooglePlace(place, category, bounds, categoryLabel) {
     },
   };
 
+  if (category === "grocery") {
+    const types = point.rawData.types;
+    const isConvenience = types.some((type) => GROCERY_CONVENIENCE_TYPES.includes(type));
+    const isSpecialty = types.some((type) => GROCERY_SPECIALTY_TYPES.includes(type));
+
+    point.match = isConvenience
+      ? {
+          tier: "fallback",
+          extensionId: "convenience_food",
+          subclassification: "Convenience store",
+          reason: "Included as a smaller last-mile food option, not a full grocery store.",
+        }
+      : isSpecialty
+        ? {
+            tier: "related",
+            extensionId: "specialty_food",
+            subclassification: "Specialty food store",
+            reason: "Included as a focused food retailer that may complement a full grocery store.",
+          }
+        : {
+            tier: "primary",
+            subclassification: "Full grocery",
+            reason: "Provider types identify this as a grocery store or supermarket.",
+          };
+  }
+
   return isInsideBounds(point, bounds) ? point : undefined;
 }
 
@@ -346,6 +442,10 @@ function isRelevantGooglePoint(point, category, query) {
   return LAUNDROMAT_INCLUDE_PATTERN.test(searchable);
 }
 
+function isIncludedByExtension(point, activeExtensions) {
+  return !point?.match?.extensionId || activeExtensions.includes(point.match.extensionId);
+}
+
 function textQueryFor(category, query) {
   if (category === "custom" && query) {
     return query;
@@ -354,7 +454,13 @@ function textQueryFor(category, query) {
   return GOOGLE_TEXT_QUERIES[category] || CATEGORY_LABELS[category] || "places";
 }
 
-async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RESULTS, query }) {
+async function fetchGoogleServicePoints({
+  category,
+  bounds,
+  maxResults = MAX_RESULTS,
+  query,
+  activeExtensions = [],
+}) {
   const apiKey = getConfiguredSecret("GOOGLE_PLACES_API_KEY");
 
   if (!apiKey) {
@@ -367,13 +473,25 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
   const shouldUseTextSearch = category === "laundry" || category === "custom";
 
   if (shouldUseTextSearch) {
-    return fetchGoogleTextServicePoints({ category, bounds, maxResults, query });
+    return fetchGoogleTextServicePoints({
+      category,
+      bounds,
+      maxResults,
+      query,
+      activeExtensions,
+    });
   }
 
   const { center, radius } = boundsCircle(bounds);
 
   if (radius > 50000) {
-    return fetchGoogleTextServicePoints({ category, bounds, maxResults, query });
+    return fetchGoogleTextServicePoints({
+      category,
+      bounds,
+      maxResults,
+      query,
+      activeExtensions,
+    });
   }
 
   const response = await fetch(GOOGLE_NEARBY_URL, {
@@ -385,7 +503,7 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
       "X-Goog-FieldMask": GOOGLE_FIELD_MASK,
     },
     body: JSON.stringify({
-      includedTypes: GOOGLE_TYPES[category],
+      includedTypes: googleTypesFor(category, activeExtensions),
       maxResultCount: Math.min(maxResults, 20),
       rankPreference: "DISTANCE",
       locationRestriction: {
@@ -410,12 +528,19 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
   const data = await response.json();
   const points = (Array.isArray(data.places) ? data.places : [])
     .map((place) => normalizeGooglePlace(place, category, bounds))
-    .filter((point) => isRelevantGooglePoint(point, category, query));
+    .filter((point) => isRelevantGooglePoint(point, category, query))
+    .filter((point) => isIncludedByExtension(point, activeExtensions));
 
   return { points: dedupeServicePoints(points).slice(0, maxResults) };
 }
 
-async function fetchGoogleTextServicePoints({ category, bounds, maxResults, query }) {
+async function fetchGoogleTextServicePoints({
+  category,
+  bounds,
+  maxResults,
+  query,
+  activeExtensions = [],
+}) {
   const apiKey = getConfiguredSecret("GOOGLE_PLACES_API_KEY");
 
   if (!apiKey) {
@@ -450,7 +575,8 @@ async function fetchGoogleTextServicePoints({ category, bounds, maxResults, quer
   const data = await response.json();
   const points = (Array.isArray(data.places) ? data.places : [])
     .map((place) => normalizeGooglePlace(place, category, bounds, query))
-    .filter((point) => isRelevantGooglePoint(point, category, query));
+    .filter((point) => isRelevantGooglePoint(point, category, query))
+    .filter((point) => isIncludedByExtension(point, activeExtensions));
 
   return {
     points: dedupeServicePoints(points).slice(0, maxResults),
@@ -472,7 +598,11 @@ function normalizeOsmDogPark(element, bounds) {
   const osmId = `${element.type}/${element.id}`;
   const tags = element.tags || {};
 
-  if (tags.leisure !== "dog_park") {
+  const isDedicatedDogPark = tags.leisure === "dog_park";
+  const dogAccess = cleanText(tags.dog);
+  const isDogFriendlyPark = tags.leisure === "park" && ["yes", "leashed"].includes(dogAccess);
+
+  if (!isDedicatedDogPark && !isDogFriendlyPark) {
     return undefined;
   }
 
@@ -487,20 +617,42 @@ function normalizeOsmDogPark(element, bounds) {
   );
   const point = {
     id: `osm-${element.type}-${element.id}`,
-    name: cleanText(tags.name) || "Mapped dog park",
+    name: cleanText(tags.name) || (isDedicatedDogPark ? "Mapped dog park" : "Dog-friendly park"),
     category: "custom",
-    categoryLabel: "Dog parks",
+    categoryLabel: isDedicatedDogPark ? "Dog parks" : "Dog-friendly parks",
     location: { lat, lng },
     source: "openstreetmap",
     address,
     sourceUrl: `https://www.openstreetmap.org/${osmId}`,
     sourceDatasetId: osmId,
-    confidence: "high",
+    confidence: isDedicatedDogPark ? "high" : "medium",
+    match: isDedicatedDogPark
+      ? {
+          tier: "primary",
+          subclassification: "Dedicated dog park",
+          reason: "Mapped as a dedicated dog park.",
+        }
+      : {
+          tier: dogAccess === "leashed" ? "related" : "fallback",
+          extensionId: dogAccess === "leashed" ? "leashed_parks" : "dog_friendly_parks",
+          subclassification:
+            dogAccess === "leashed" ? "Leash-required park" : "Dog-friendly park",
+          reason:
+            dogAccess === "leashed"
+              ? "Included because this park is mapped as allowing dogs on leash."
+              : "Included because this park is mapped as allowing dogs; local leash rules still apply.",
+          conditions: [
+            dogAccess === "leashed" ? "Leash required" : "Verify local leash rules",
+            "Not a dedicated dog park",
+          ],
+        },
     provenance: {
       label: SOURCE_LABELS.openstreetmap,
       datasetId: osmId,
       sourceUrl: `https://www.openstreetmap.org/${osmId}`,
-      note: "Mapped as leisure=dog_park in OpenStreetMap.",
+      note: isDedicatedDogPark
+        ? "Mapped as leisure=dog_park in OpenStreetMap."
+        : `Mapped as leisure=park with dog=${dogAccess} in OpenStreetMap.`,
     },
     rawData: {
       id: osmId,
@@ -508,6 +660,7 @@ function normalizeOsmDogPark(element, bounds) {
       access: cleanText(tags.access),
       barrier: cleanText(tags.barrier),
       operator: cleanText(tags.operator),
+      dog: dogAccess,
     },
   };
 
@@ -528,6 +681,11 @@ function normalizeOsmDogPark(element, bounds) {
         sourceUrl: NISKAYUNA_DOG_PARK_SOURCE_URL,
         note: "Town guidance locates the fenced dog park inside Blatnick Park behind the baseball fields.",
       },
+      match: {
+        tier: "primary",
+        subclassification: "Dedicated dog park",
+        reason: "Town guidance verifies a dedicated fenced dog park inside Blatnick Park.",
+      },
     };
   }
 
@@ -540,6 +698,11 @@ function normalizeOsmDogPark(element, bounds) {
         ...point.provenance,
         note: "Mapped as leisure=dog_park inside Colonie Mohawk River Park.",
       },
+      match: {
+        tier: "primary",
+        subclassification: "Dedicated dog park",
+        reason: "Mapped as a dedicated dog park inside Colonie Mohawk River Park.",
+      },
     };
   }
 
@@ -547,7 +710,7 @@ function normalizeOsmDogPark(element, bounds) {
 }
 
 async function fetchOpenStreetMapDogParks(bounds) {
-  const query = `[out:json][timeout:8];nwr["leisure"="dog_park"](${bounds.minLat},${bounds.minLng},${bounds.maxLat},${bounds.maxLng});out center tags;`;
+  const query = `[out:json][timeout:8];(nwr["leisure"="dog_park"](${bounds.minLat},${bounds.minLng},${bounds.maxLat},${bounds.maxLng});nwr["leisure"="park"]["dog"~"^(yes|leashed)$"](${bounds.minLat},${bounds.minLng},${bounds.maxLat},${bounds.maxLng}););out center tags;`;
 
   for (const endpoint of OVERPASS_URLS) {
     try {
@@ -577,6 +740,10 @@ async function fetchOpenStreetMapDogParks(bounds) {
           if (right.source === "official_local" && left.source !== "official_local") {
             return 1;
           }
+          const tierPriority = { primary: 0, related: 1, fallback: 2 };
+          if (left.match?.tier !== right.match?.tier) {
+            return (tierPriority[left.match?.tier] ?? 3) - (tierPriority[right.match?.tier] ?? 3);
+          }
           return left.name.localeCompare(right.name);
         });
 
@@ -598,11 +765,24 @@ async function fetchOpenStreetMapDogParks(bounds) {
   };
 }
 
-async function fetchDogParkServicePoints(bounds, query) {
+async function fetchDogParkServicePoints(bounds, query, activeExtensions) {
   const osmResult = await fetchOpenStreetMapDogParks(bounds);
 
   if (osmResult.points.length > 0) {
-    return osmResult;
+    const points = osmResult.points.filter(
+      (point) => !point.match?.extensionId || activeExtensions.includes(point.match.extensionId),
+    );
+    const extendedCount = points.filter((point) => point.match?.extensionId).length;
+
+    return {
+      points,
+      warnings:
+        extendedCount > 0
+          ? [
+              `Extended with ${extendedCount} ${extendedCount === 1 ? "park" : "parks"} where mapped dog-access rules apply. Dedicated dog parks remain first.`,
+            ]
+          : [],
+    };
   }
 
   const googleResult = await fetchGoogleTextServicePoints({
@@ -1071,8 +1251,11 @@ function dedupeServicePoints(points) {
     };
     const leftPriority = sourcePriority[left.source] ?? 2;
     const rightPriority = sourcePriority[right.source] ?? 2;
+    const tierPriority = { primary: 0, related: 1, fallback: 2 };
+    const leftTier = tierPriority[left.match?.tier] ?? 3;
+    const rightTier = tierPriority[right.match?.tier] ?? 3;
 
-    return leftPriority - rightPriority || left.name.localeCompare(right.name);
+    return leftTier - rightTier || leftPriority - rightPriority || left.name.localeCompare(right.name);
   });
 }
 
@@ -1103,6 +1286,9 @@ export async function handler(event) {
     return json(400, { message: customQuery.error });
   }
 
+  const availableExtensions = extensionsFor(category, customQuery.query);
+  const activeExtensions = parseExtensions(params.include, availableExtensions);
+
   const bounds = parseBbox(params.bbox);
 
   if (!bounds) {
@@ -1116,9 +1302,10 @@ export async function handler(event) {
   }
 
   const cacheKey = makeCacheKey("service-points", {
-    version: 3,
+    version: 4,
     category,
     query: category === "custom" ? customQuery.query : undefined,
+    activeExtensions,
     bounds,
     googleKeyConfigured: Boolean(getConfiguredSecret("GOOGLE_PLACES_API_KEY")),
     overpassUrls:
@@ -1150,12 +1337,13 @@ export async function handler(event) {
       category === "library"
         ? await fetchLibraryServicePoints(bounds)
         : category === "custom" && isDogParkQuery(customQuery.query)
-          ? await fetchDogParkServicePoints(bounds, customQuery.query)
+          ? await fetchDogParkServicePoints(bounds, customQuery.query, activeExtensions)
         : await fetchGoogleServicePoints({
             category,
             bounds,
             maxResults: MAX_RESULTS,
             query: category === "custom" ? customQuery.query : undefined,
+            activeExtensions,
           });
 
     const points = dedupeServicePoints(result.points).slice(0, MAX_RESULTS);
@@ -1169,6 +1357,8 @@ export async function handler(event) {
       count: points.length,
       sources: responseSources(points),
       points,
+      extensions: availableExtensions,
+      activeExtensions,
       warnings: (result.warnings || []).filter(Boolean),
     };
     const stored = setCached(servicePointCache, cacheKey, payload, CACHE_TTL_MS);

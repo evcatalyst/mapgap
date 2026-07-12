@@ -22,10 +22,12 @@ async function parseApiError(response: Response) {
 export async function fetchServicePoints({
   category,
   bounds,
+  extensions,
   query,
 }: {
   category: ServicePointCategory;
   bounds: MapBounds;
+  extensions?: string[];
   query?: string;
 }) {
   const params = new URLSearchParams({
@@ -35,6 +37,10 @@ export async function fetchServicePoints({
 
   if (query?.trim()) {
     params.set("q", query.trim());
+  }
+
+  if (extensions && extensions.length > 0) {
+    params.set("include", extensions.join(","));
   }
 
   let response: Response;
