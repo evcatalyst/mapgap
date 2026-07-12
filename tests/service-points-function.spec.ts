@@ -344,12 +344,14 @@ test("service-points falls back to Google Places when official library sources a
 test("service-points supports custom Google text-search categories", async () => {
   process.env.GOOGLE_PLACES_API_KEY = "test-google-key";
   let requestBody: { textQuery?: string } | undefined;
+  let fieldMask = "";
 
   globalThis.fetch = async (input, init) => {
     const url = String(input);
 
     if (url.includes("places.googleapis.com/v1/places:searchText")) {
       requestBody = JSON.parse(String(init?.body || "{}"));
+      fieldMask = String((init?.headers as Record<string, string>)?.["X-Goog-FieldMask"] || "");
 
       return jsonResponse({
         places: [
@@ -381,9 +383,90 @@ test("service-points supports custom Google text-search categories", async () =>
   expect(body.sources).toEqual(["google_places"]);
   expect(body.points[0].category).toBe("custom");
   expect(body.points[0].name).toBe("Neighborhood Pharmacy");
+  expect(fieldMask).toContain("places.displayName");
+  expect(fieldMask).not.toContain("places.currentOpeningHours");
+  expect(fieldMask).not.toContain("places.nationalPhoneNumber");
+  expect(fieldMask).not.toContain("places.websiteUri");
   expect(body.warnings || []).toContain(
     "Custom categories use Google Places provider matching. Verify result relevance.",
   );
+});
+
+test("service-points uses typed OSM dog parks and verifies the Blatnick Park facility", async () => {
+  process.env.GOOGLE_PLACES_API_KEY = "test-google-key";
+  let googleCalls = 0;
+  const overpassCalls: string[] = [];
+
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+
+    if (url.includes("overpass")) {
+      overpassCalls.push(url);
+
+      if (url.includes("lz4.overpass-api.de")) {
+        return jsonResponse({}, false, 504);
+      }
+
+      return jsonResponse({
+        elements: [
+          {
+            type: "way",
+            id: 485187501,
+            center: { lat: 42.8136451, lon: -73.8623708 },
+            tags: {
+              access: "permit",
+              barrier: "fence",
+              leisure: "dog_park",
+              name: "Niskayuna Dog Park",
+              operator: "Town of Niskayuna",
+            },
+          },
+          {
+            type: "way",
+            id: 1107096494,
+            center: { lat: 42.7963218, lon: -73.744202 },
+            tags: { leisure: "dog_park" },
+          },
+          {
+            type: "way",
+            id: 999,
+            center: { lat: 42.8019098, lon: -73.8626843 },
+            tags: { leisure: "park", name: "River Road Town Park" },
+          },
+        ],
+      });
+    }
+
+    if (url.includes("places.googleapis.com")) {
+      googleCalls += 1;
+      return jsonResponse({ places: [] });
+    }
+
+    throw new Error(`Unexpected fetch: ${url}`);
+  };
+
+  const { response, body } = await callServicePoints({
+    category: "custom",
+    q: "dog parks",
+    bbox: "-73.91,42.72,-73.74,42.84",
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(googleCalls).toBe(0);
+  expect(overpassCalls).toHaveLength(2);
+  expect(body.count).toBe(2);
+  expect(body.sources).toEqual(["official_local", "openstreetmap"]);
+  expect(body.points[0]).toMatchObject({
+    name: "Niskayuna Dog Park (Blatnick Park)",
+    source: "official_local",
+    category: "custom",
+  });
+  expect(body.points.map((point) => point.name)).not.toContain("River Road Town Park");
+  expect(body.points[1]).toMatchObject({
+    name: "Town of Colonie Dog Park",
+    source: "openstreetmap",
+  });
+  expect(body.warnings || []).toEqual([]);
 });
 
 test("service-points excludes cleaning services and dry-clean-only laundry results", async () => {
