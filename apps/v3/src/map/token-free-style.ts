@@ -1,33 +1,27 @@
 /**
- * A self-contained MapLibre style. It has no raster/vector sources, sprites,
- * glyphs, Mapbox URL, or access token, so the alpha makes no third-party
- * basemap request. Partner deployments can add approved token-free sources by
- * replacing this explicit style rather than falling back to a default style.
+ * OpenFreeMap's Liberty style is a real OpenStreetMap-derived vector basemap.
+ * It does not require an account, API key, access token, or provider secret.
+ * Runtime map resources stay on the single origin allow-listed in netlify.toml.
  */
-export const TOKEN_FREE_MAP_STYLE_ID = "mapgap-token-free";
+export const TOKEN_FREE_MAP_STYLE_ID = "mapgap-openfreemap-liberty";
+export const TOKEN_FREE_MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
+export const TOKEN_FREE_MAP_ORIGIN = "https://tiles.openfreemap.org";
 
 export const TOKEN_FREE_MAP_STYLE = {
-  version: 8,
-  name: "MapGap token-free analysis canvas",
-  sources: {},
-  layers: [
-    {
-      id: "mapgap-background",
-      type: "background",
-      paint: { "background-color": "#edf4f7" },
-    },
-  ],
+  id: TOKEN_FREE_MAP_STYLE_ID,
+  label: "OpenFreeMap Liberty",
+  url: TOKEN_FREE_MAP_STYLE_URL,
+  icon: "",
+  layerGroups: [],
+  custom: true,
 };
 
-export const TOKEN_FREE_MAP_STYLES = [
-  {
-    id: TOKEN_FREE_MAP_STYLE_ID,
-    label: "MapGap analysis canvas (no basemap token)",
-    style: TOKEN_FREE_MAP_STYLE,
-  },
-];
+export const TOKEN_FREE_MAP_STYLES = [TOKEN_FREE_MAP_STYLE];
 
 export function isTokenFreeMapStyle(value: unknown) {
   const serialized = JSON.stringify(value).toLowerCase();
-  return !/(mapbox|access[_-]?token|api[_-]?key|secret)/.test(serialized);
+  const credentialKey = /["'](?:access[_-]?token|api[_-]?key|token|key|secret|auth|authorization|signature|sig|x-amz-[^"']+)["']\s*:/;
+  const credentialQuery = /[?&](?:access[_-]?token|api[_-]?key|token|key|secret|auth|authorization|signature|sig|x-amz-[^=&#]+)=/;
+  const urlUserInfo = /https?:\/\/[^/"'\s@]+@/;
+  return !/mapbox/.test(serialized) && !credentialKey.test(serialized) && !credentialQuery.test(serialized) && !urlUserInfo.test(serialized);
 }

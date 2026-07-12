@@ -13,6 +13,11 @@ type StoryLayer = {
   strokeColor?: [number, number, number];
   opacity?: number;
   radius?: number;
+  radiusRange?: [number, number];
+  colorField?: {name: string; type: "string" | "integer"};
+  colorRange?: string[];
+  radiusField?: {name: string; type: "integer"};
+  textField?: string;
 };
 
 const RELOCATION_LAYERS: StoryLayer[] = [
@@ -30,8 +35,11 @@ const RELOCATION_LAYERS: StoryLayer[] = [
     dataId: MAPGAP_DATASET_IDS.candidates,
     label: "Candidate locations",
     kind: "point",
-    color: [234, 88, 12],
-    radius: 18,
+    color: [21, 122, 104],
+    radius: 22,
+    colorField: {name: "scoreBand", type: "string"},
+    colorRange: ["#157a68", "#b85040", "#64748b"],
+    textField: "mapLabel",
   },
   {
     id: "mapgap-relocation-anchors",
@@ -40,6 +48,7 @@ const RELOCATION_LAYERS: StoryLayer[] = [
     kind: "point",
     color: [15, 118, 110],
     radius: 12,
+    textField: "mapLabel",
   },
   {
     id: "mapgap-relocation-pois",
@@ -73,10 +82,13 @@ const CIVIC_LAYERS: StoryLayer[] = [
   {
     id: "mapgap-civic-assets",
     dataId: MAPGAP_DATASET_IDS.assets,
-    label: "Civic assets",
+    label: "Civic assets · size = capacity",
     kind: "point",
     color: [126, 34, 206],
     radius: 18,
+    radiusRange: [12, 26],
+    radiusField: {name: "capacity", type: "integer"},
+    textField: "mapLabel",
   },
   {
     id: "mapgap-civic-anchor",
@@ -85,6 +97,7 @@ const CIVIC_LAYERS: StoryLayer[] = [
     kind: "point",
     color: [15, 118, 110],
     radius: 11,
+    textField: "mapLabel",
   },
 ];
 
@@ -141,13 +154,34 @@ function toKeplerLayer(layer: StoryLayer) {
       color: layer.color,
       columns: {geojson: "_geojson"},
       isVisible: true,
+      ...(layer.textField ? {
+        textLabel: {
+          field: {name: layer.textField, type: "string"},
+          color: [25, 48, 55] as [number, number, number],
+          size: 13,
+          weight: 700,
+          offset: [0, -22] as [number, number],
+          anchor: "middle",
+          alignment: "bottom",
+          outlineWidth: 2,
+          outlineColor: [255, 255, 255, 255] as [number, number, number, number],
+          background: false,
+          backgroundColor: [255, 255, 255, 220] as [number, number, number, number],
+        },
+      } : {}),
       visConfig: {
         opacity: layer.opacity ?? 0.9,
         thickness: polygon ? 2.5 : 1,
         strokeColor: layer.strokeColor ?? [255, 255, 255],
         radius: layer.radius ?? 10,
         sizeRange: [0, 10],
-        radiusRange: [0, 50],
+        radiusRange: layer.radiusRange ?? [0, 50],
+        colorRange: layer.colorRange ? {
+          name: "MapGap decision status",
+          type: "custom",
+          category: "Custom",
+          colors: layer.colorRange,
+        } : undefined,
         heightRange: [0, 500],
         elevationScale: 5,
         stroked: true,
@@ -157,16 +191,16 @@ function toKeplerLayer(layer: StoryLayer) {
       },
     },
     visualChannels: {
-      colorField: null,
-      colorScale: "quantile",
+      colorField: layer.colorField ?? null,
+      colorScale: layer.colorField ? "ordinal" : "quantile",
       sizeField: null,
       sizeScale: "linear",
       strokeColorField: null,
       strokeColorScale: "quantile",
       heightField: null,
       heightScale: "linear",
-      radiusField: null,
-      radiusScale: "linear",
+      radiusField: layer.radiusField ?? null,
+      radiusScale: layer.radiusField ? "sqrt" : "linear",
     },
   };
 }

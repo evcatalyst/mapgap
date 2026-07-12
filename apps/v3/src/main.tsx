@@ -6,7 +6,8 @@ import { v3Store } from "./store";
 
 // Kepler's default config includes Mapbox even when a MapLibre style is passed.
 // Replace that registry before mounting so the alpha never validates or requests
-// a Mapbox token. The remaining MapLibre entry is the local, token-free style.
+// a Mapbox token. The remaining MapLibre entry is the explicitly allow-listed,
+// token-free OpenFreeMap style.
 const defaultConfig = getApplicationConfig();
 initApplicationConfig({
   baseMapLibraryConfig: {
@@ -14,6 +15,7 @@ initApplicationConfig({
   } as never,
   enableRasterTileLayer: false,
   enableWMSLayer: false,
+  enableMapNavigationControl: false,
   showReleaseBanner: false,
 });
 

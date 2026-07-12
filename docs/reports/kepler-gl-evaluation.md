@@ -4,7 +4,7 @@
 **MapGap baseline:** `1d5e584` plus the current uncommitted Phase 1 workspace  
 **Upstream evaluated:** stable `v3.2.6`, preview `v3.3.0-alpha.1`  
 **Implementation status:** V3.0 is published as a fixture-only public prerelease under `apps/v3`  
-**Decision:** conditional go for a dependency-isolated Kepler alpha; V2 continues independently; production package choice and any fork remain open
+**Decision:** go for the dependency-isolated, fixture-only public alpha backed by a narrow public fork prerelease; V2 continues independently; permanent fork ownership and production promotion remain open
 
 > **Version note:** MapGap V3 is MapGap's product generation. It is independent of Kepler.gl's own `3.x` release numbering; V3 must select the safest supported Kepler release available when implementation begins.
 
@@ -18,14 +18,14 @@ This is a better fit for a V3 boundary than a retrofit of V2. V2 should continue
 2. Build `/v3` as a separate deployable artifact and dependency boundary, initially for analysts and pilot partners.
 3. Share framework-neutral project schemas, domain types, API clients, routing, scoring, provenance, and report contracts between versions.
 4. Put Kepler behind a typed MapGap-to-visualization adapter; Kepler Redux remains V3 presentation state, not MapGap truth.
-5. Reconsider a narrow rendering/UI fork only after the V3 pilot passes the product, performance, security, and maintenance gates in this report.
+5. Treat the published security fork as prerelease evidence only; retain or promote it only after the V3 pilot passes the product, performance, security, sync, and maintenance gates in this report.
 
 The original stable-package alpha rendered under React 18 and Vite 8 but
 reported 31 high plus 8 moderate audit findings. That baseline is superseded by
 the public MapGap fork prerelease: React 19, zero audit findings, strict deployed
-CSP, and passing live smoke/security checks. Its 3.33 MB gzip main JavaScript
-plus 1.83 MB gzip Parquet WASM still exceeds the 3 MB production target, so the
-published site remains a fixture-only prerelease rather than production.
+CSP, and passing live smoke/security checks. Its JavaScript plus Parquet WASM
+currently totals about 5.07 MB gzip, still above the 3 MB production target, so
+the published site remains a fixture-only prerelease rather than production.
 
 ## V2/V3 product boundary
 
@@ -103,8 +103,9 @@ root manifest or lockfile.
 | --- | ---: | --- |
 | Install | Succeeded with 828 packages | A full Kepler UI carries a major supply-chain and maintenance surface. |
 | Vite build | Succeeded; 4,105 modules transformed | Stable Kepler compiles in the separate V3 tooling generation. |
-| Output | 10.79 MB JS + 5.49 MB Parquet WASM; 4.57 MB total gzip | Production V3 must remain separate; Kepler contributes zero bytes and zero dependencies to V2. It is above the 3 MB target. |
-| Browser smoke | Two analyst preset journeys pass in Chromium | A self-contained MapLibre style mounts with no Mapbox or token-bearing request. |
+| Output | About 12.47 MB JS + 5.49 MB Parquet WASM; 5.07 MB total gzip | Production V3 must remain separate; Kepler contributes zero bytes and zero dependencies to V2. It is above the 3 MB target. |
+| Browser smoke | Two analyst preset journeys pass in desktop and phone Chromium | A real OpenFreeMap Liberty vector map loads roads, water, and labels; the viewport fits each scenario rather than retaining stale data. |
+| Basemap security | Style, sprites, glyphs, TileJSON, and PBF tiles succeed from one allow-listed origin | No Mapbox or credential-bearing URL is requested; OpenFreeMap/OpenMapTiles/OpenStreetMap attribution remains visible. |
 | Import interop | Default reducer import failed; named CommonJS exports worked | The adapter must use verified named imports under Vite 8 and carry a runtime smoke test. |
 | Install warnings | loaders.gl peer conflicts plus legacy React peer/deprecation warnings | Exact dependency resolution must be pinned and reviewed; blind semver ranges are unsafe. |
 | Build warnings | browser-externalized `assert`, worker `eval`, oversized chunk | CSP, worker behavior, and chunking need explicit production tests. |
@@ -219,10 +220,10 @@ The estimates below are planning ranges for one experienced front-end engineer w
 | V3 stage | Scope | Estimate | Exit gate |
 | --- | --- | ---: | --- |
 | V3.0 — architecture | Separate `apps/v3` npm root/lock/build/site config; dependency-free project contract; V2 isolation and artifact-budget guards | Implemented | V2 build and budget pass; root has no Kepler/deck/MapLibre/loader import or dependency. |
-| V3.1 — public prerelease | Read-only Kepler shell, one-way V2 adapter, fixture/round-trip tests, relocation and civic presets, token-free MapLibre style, browser and scale-policy tests | Published separately | 11 local checks plus live smoke/security checks pass at `mapgap-v3-preview.netlify.app`; V2 remains separate. |
+| V3.1 — public prerelease | Read-only Kepler shell, one-way V2 adapter, fixture/round-trip tests, relocation and civic presets, token-free OpenFreeMap vector basemap, map-first responsive shell, browser and scale-policy tests | Published separately | Local plus live smoke/security checks pass at `mapgap-v3-preview.netlify.app`; real PBF tiles and fitted per-scenario viewports are verified; V2 remains separate. |
 | V3.2 — partner beta | Candidate and civic presets, saved views, exports, telemetry, accessibility, visual/performance/security tests | 3–5 additional weeks | Pilot analysts complete target tasks; V2 remains independently deployable; security and CSP gates pass. |
 | V3.3 — production release | Auth/project integration as needed, operational SLOs, error recovery, upgrade and rollback process | 3–6 additional weeks | Audit, accessibility, provenance, scale, support, and rollback gates pass. |
-| V3.F — conditional fork | Fork automation, scoped packages, minimal patch set, upstream sync CI, ownership and release process | 3–6 weeks initial; roughly 0.25–0.5 FTE ongoing | Explicit fork triggers pass and maintenance budget is owned. This can occur between V3.1 and V3.3 if evidence requires it. |
+| V3.F — public fork prerelease | Public `evcatalyst/kepler.gl` fork, immutable release assets, minimal patch ledger, packed-consumer audit, browser/CSP evidence, upstream contribution slices | Initial prerelease implemented; roughly 0.25–0.5 FTE ongoing if promoted | Keep the fork prerelease-only until sync ownership, SBOM/license review, bundle, browser, operations, and stop-condition gates pass. |
 
 This is a new application version, not a Leaflet rewrite. V2 continues on its own roadmap, and V3 reuses shared product contracts rather than UI internals. Replacing V2 remains out of scope unless later evidence shows that the public product itself should become analyst-first.
 
@@ -230,10 +231,10 @@ This is a new application version, not a Leaflet rewrite. V2 continues on its ow
 
 1. Keep all V2 release and quality work independent of V3.
 2. Create a V3 workspace/build with no production navigation; desktop only; sample/fixture data first. **Completed** under `apps/v3`.
-3. Expose an internal V3 site only after the security and CSP review; it must not reuse the V2 Netlify site or route.
+3. Expose a fixture-only V3 prerelease after the security and CSP review; keep it on a separate Netlify site with no V2 route. **Completed.**
 4. Run a small analyst cohort while V2 remains the fallback and public default.
 5. Promote V3 from alpha to partner beta only after the application-boundary, audit, CSP, and task-value gates pass.
-6. Do not fork until at least two V3 use cases demonstrate material value and supported upstream extension points prove insufficient.
+6. Keep the published fork narrow and upstream-first; do not promote it to a permanent production dependency until two V3 use cases prove value and the ongoing ownership gates pass.
 
 ## Regression and acceptance gates
 
@@ -250,7 +251,7 @@ This is a new application version, not a Leaflet rewrite. V2 continues on its ow
 
 - The V2 deployable and dependency graph include no Kepler, DuckDB, Parquet WASM, deck.gl, or MapLibre code added for V3.
 - The current V2 artifact baseline is 772,581 B raw / 233,321 B gzip; any unexplained increase above 5% from V3 work blocks the pilot.
-- The isolated V3 alpha currently measures 4.57 MB gzip. The <3 MB target is not met; tree-shaken modules, an upstream fix, a scoped fork, or direct MapLibre/deck.gl are the resolution candidates.
+- The isolated V3 alpha currently measures about 5.07 MB gzip. The <3 MB target is not met; tree-shaken modules, an upstream fix, a scoped fork, or direct MapLibre/deck.gl are the resolution candidates.
 - Define and measure cold load, warm load, pan/zoom responsiveness, memory, and update time on a representative desktop, iPad, and low-end phone before rollout.
 - Test tiers: 10k direct features, 100k binary/client-query features, and 1M+ tiled features. These are MapGap qualification targets, not upstream guarantees.
 
@@ -296,13 +297,13 @@ DuckDB is attractive for private, ad hoc analyst files and transparent SQL explo
 | Keep Leaflet only | Safe fallback, not the preferred long-term analyst ceiling | Lowest risk but leaves major visualization, scale, and comparison capability on the table. |
 | Build V3 with stable Kepler packages behind an adapter | **Recommended alpha shape** | Fastest way to validate value while preserving upstream updates and keeping V2 isolated. Currently blocked from production by audit/size/integration gates. |
 | Build V3 with deck.gl/MapLibre directly for selected layers | Strong fallback or later optimization | More code to build, but far smaller and more product-shaped than the full Kepler authoring UI. |
-| Maintain a local upstream-first Kepler security patch line now | **Recommended and in progress** | Produces independently upstreamable fixes without publishing or committing MapGap to a permanent fork. The first spike clears D3/Thrift/fetch paths and removes `react-palm` while preserving 11,386 upstream Node tests. |
-| Publish a MapGap-scoped Kepler fork now | **Not yet** | The patch line now has a zero-finding packed core audit. Publication still waits for peer-clean/browser packaging, CSP evidence, SBOM/license review, and owned release maintenance. |
+| Maintain an upstream-first Kepler security patch line | **Implemented and continuing** | Produces independently upstreamable fixes. The patch line clears D3/Thrift/fetch/Lodash paths and removes `react-palm` while preserving 11,386 upstream Node tests. |
+| Publish a MapGap-scoped Kepler fork prerelease | **Implemented for V3.1 evidence** | The public fork and immutable prerelease assets let MapGap test the secured package graph. This is not approval for permanent or production ownership; sync, browser, SBOM/license, bundle, and maintenance gates remain. |
 | Replace all MapGap maps with Kepler | Reject | Regresses the public/mobile experience, duplicates state, and turns a domain product into a generic map editor. |
 
 ### Fork triggers
 
-A `mapgap/kepler.gl` fork becomes reasonable only if all of the following are true:
+The public prerelease fork becomes reasonable to retain and promote only if all of the following are true:
 
 1. V3.2 proves at least two high-value workflows, such as candidate comparison and civic asset audit.
 2. Dependency injection, theming, reducer plugins, and a thin wrapper cannot meet two or more critical requirements without monkey-patching internals.
@@ -310,11 +311,11 @@ A `mapgap/kepler.gl` fork becomes reasonable only if all of the following are tr
 4. The team accepts a recurring upstream-sync budget and assigns a maintainer.
 5. The fork remains a visualization workbench; MapGap domain logic stays outside it.
 
-Security findings now justify a local upstream-first patch line because current
-master still retains vulnerable runtime roots and Yarn resolutions do not
-protect npm consumers. They do not yet justify publishing a permanent fork.
-The verified patch line and ledger live under `fork/kepler-gl`; publication remains
-conditional on a clean consumer graph and an owned maintenance process.
+Security findings justified the public upstream-first prerelease because Yarn
+resolutions did not protect npm consumers. They do not yet justify making the
+fork permanent or production-supported. The verified patch line and ledger live
+under `fork/kepler-gl`; retention remains conditional on a clean consumer graph,
+upstream-sync discipline, and an owned maintenance process.
 
 ### Fork operating model
 
@@ -340,11 +341,12 @@ preset renders capacity and normalized utilization alongside a clearly labeled,
 deterministic underserved-capacity proxy. Both expose text/table evidence
 outside the canvas.
 
-V3.2 should not start with a published fork or public deployment. It should first:
+V3.2 starts from the public fixture-only prerelease and fork evidence, but it
+must not accept partner data or claim production readiness. It should next:
 
 1. Run a bounded analyst cohort against the two actual workflows and measure task completion, explanation quality, export usefulness, and whether Kepler controls materially help.
 2. Replace fixtures with a read-only, authenticated project/result API only after provenance, retention, and permission decisions are approved.
-3. Close the production blockers: high-severity audit paths, legacy peers, direct-`eval` CSP behavior, and the <3 MB bundle target.
+3. Close the remaining production blockers: the <3 MB bundle target or an explicit waiver, duplicate-luma packaging, accessibility/browser depth, identity/permissions, availability SLOs, SBOM/license review, and rollback ownership.
 4. Add real 100k Arrow/query and 1M+ tiled evidence, accessibility/browser/WebGL recovery evidence, export/report provenance, telemetry, and rollback rehearsal.
 5. Review V3.2 evidence before choosing a newer upstream release, a deliberately maintained fork, or direct MapLibre/deck.gl for production V3.
 
@@ -366,6 +368,8 @@ remain open; this is progress evidence, not a production waiver.
 - [Kepler.gl releases: stable 3.2.6 and 3.3 previews](https://github.com/keplergl/kepler.gl/releases)
 - [Stable 3.2.6 component manifest](https://github.com/keplergl/kepler.gl/blob/v3.2.6/src/components/package.json)
 - [Kepler.gl MIT license](https://github.com/keplergl/kepler.gl/blob/master/LICENSE)
+- [OpenFreeMap and attribution terms](https://openfreemap.org/)
+- [OpenFreeMap MapLibre quick start](https://openfreemap.org/quick_start/)
 - [3.3 upgrade guide and breaking changes](https://github.com/keplergl/kepler.gl/blob/master/docs/upgrade-guide-v3.3.md)
 - [Release notes for DuckDB, vector/raster tiles, WMS, and AI assistant](https://docs.kepler.gl/release-notes)
 - [Supported data formats, upload limit, and coordinate system](https://docs.kepler.gl/docs/user-guides/b-kepler-gl-workflow/a-add-data-to-the-map)

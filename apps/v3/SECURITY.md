@@ -24,11 +24,16 @@ status changes, or the formal constraints are missing.
 
 - The deployed site passes its strict CSP without `unsafe-eval`, plus live
   smoke and token-free request checks.
-- The current full-workbench payload is about 5.16 MB gzip (JavaScript plus
+- The current full-workbench payload is about 5.07 MB gzip (JavaScript plus
   Parquet WASM). It exceeds the 3 MB production target and must be reduced or
   explicitly re-reviewed before production promotion.
 - The public prerelease is `https://mapgap-v3-preview.netlify.app`. It has no
   saved-project persistence, authentication, partner-data intake, or V2 route.
+- The CSP permits one map provider origin, `https://tiles.openfreemap.org`.
+  Browser security tests require a successful vector-tile response, reject all
+  other remote origins and credential-bearing query parameters, and verify
+  complete OpenFreeMap/OpenMapTiles/OpenStreetMap attribution. The free service
+  has no SLA, so availability and self-hosting remain production decisions.
 
 The required production decision is intentionally fail-closed:
 

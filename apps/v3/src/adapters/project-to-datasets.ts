@@ -85,11 +85,11 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
     dataset(MAPGAP_DATASET_IDS.candidates, "Candidate scores", project.candidates.map((candidate) => feature(candidate.geometry, {
       id: candidate.id,
       label: candidate.label,
-      mapLabel: candidate.score?.failedConstraints.length ? "Fails commute" : "Passes route",
+      mapLabel: !candidate.score ? "Not scored" : candidate.score.failedConstraints.length ? "Fails commute" : "Passes route",
       source: candidate.source,
       rank: candidate.rank,
       totalScore: candidate.score?.total,
-      scoreBand: candidate.score?.band,
+      scoreBand: candidate.score?.band ?? "unscored",
       scoreComponents: candidate.score?.components
         .map((component) => `${component.label}: ${component.value}`)
         .join("; "),
@@ -150,14 +150,18 @@ export function projectToKeplerDatasets(project: MapGapProjectV1): KeplerDataset
 }
 
 export function projectToEvidenceSummary(project: MapGapProjectV1) {
+  const scoredCandidates = project.candidates.filter((candidate) => candidate.score);
   return {
     candidateCount: project.candidates.length,
     failedCandidateCount: project.candidates.filter(
       (candidate) => (candidate.score?.failedConstraints.length ?? 0) > 0,
     ).length,
+    passedCandidateCount: scoredCandidates.filter((candidate) => candidate.score!.failedConstraints.length === 0).length,
+    unscoredCandidateCount: project.candidates.length - scoredCandidates.length,
     routedPolygonCount: project.isochrones.length,
     assetCount: project.civic.assets.length,
     totalCapacity: project.civic.assets.reduce((total, asset) => total + (asset.capacity ?? 0), 0),
+    unknownCapacityCount: project.civic.assets.filter((asset) => asset.capacity === undefined).length,
     underservedAreaCount: project.civic.underservedAreas.length,
   };
 }

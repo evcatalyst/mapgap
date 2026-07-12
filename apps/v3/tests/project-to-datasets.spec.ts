@@ -5,6 +5,7 @@ import {
   getRelocationProjectFixture,
 } from "@mapgap/project-contract/fixtures";
 import { projectToDatasets, projectToEvidenceSummary } from "../src/adapters/project-to-datasets";
+import { getStoryMapConfig } from "../src/map/story-config";
 
 test("relocation projection preserves candidate score and routed polygon evidence", () => {
   const project = getRelocationProjectFixture();
@@ -39,4 +40,34 @@ test("civic projection keeps capacity, utilization, underserved evidence, and pr
   expect(underserved.featureCollection.features[0].properties.underservedScore).toBe(82);
   expect(String(underserved.featureCollection.features[0].properties.evidence)).toContain("deterministic alpha proxy");
   expect(summary).toMatchObject({ assetCount: 2, totalCapacity: 72, underservedAreaCount: 1 });
+
+  const config = getStoryMapConfig("civic", project);
+  const assetLayer = config.config.visState.layers.find((layer) => layer.id === "mapgap-civic-assets")!;
+  expect(assetLayer.visualChannels.radiusField).toEqual({name: "capacity", type: "integer"});
+  expect(assetLayer.visualChannels.radiusScale).toBe("sqrt");
+  expect(assetLayer.config.visConfig.radiusRange).toEqual([12, 26]);
+  expect(assetLayer.config.label).toContain("size = capacity");
+});
+
+test("missing decision evidence stays unknown instead of becoming a pass or zero capacity", () => {
+  const relocation = getRelocationProjectFixture();
+  relocation.candidates[0].score = undefined;
+  const candidateDataset = projectToDatasets(relocation).find((dataset) => dataset.id === MAPGAP_DATASET_IDS.candidates)!;
+  const unscored = candidateDataset.featureCollection.features.find(
+    (feature) => feature.properties.id === "candidate-proximity-only",
+  )!;
+  expect(unscored.properties.mapLabel).toBe("Not scored");
+  expect(unscored.properties.scoreBand).toBe("unscored");
+  expect(projectToEvidenceSummary(relocation)).toMatchObject({
+    passedCandidateCount: 1,
+    failedCandidateCount: 0,
+    unscoredCandidateCount: 1,
+  });
+
+  const civic = getCivicCapacityProjectFixture();
+  civic.civic.assets[0].capacity = undefined;
+  expect(projectToEvidenceSummary(civic)).toMatchObject({
+    totalCapacity: 48,
+    unknownCapacityCount: 1,
+  });
 });
