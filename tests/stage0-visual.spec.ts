@@ -150,7 +150,7 @@ async function mockAppRoutes(
         ? [
             {
               id: "specialty_food",
-              label: "Specialty food stores",
+              label: "Local & specialty food",
               description: "Focused food retailers.",
             },
             {
@@ -159,7 +159,20 @@ async function mockAppRoutes(
               description: "Smaller last-mile food options.",
             },
           ]
-        : dogSearch
+        : category === "coffee"
+          ? [
+              {
+                id: "bakery_cafes",
+                label: "Bakery & breakfast cafes",
+                description: "Related breakfast venues that serve coffee.",
+              },
+              {
+                id: "coffee_available",
+                label: "Coffee available",
+                description: "Fast-food and convenience fallbacks.",
+              },
+            ]
+          : dogSearch
           ? [
               {
                 id: "leashed_parks",
@@ -213,6 +226,13 @@ async function mockAppRoutes(
                 subclassification: "Specialty food store",
                 reason: "Included as a focused food retailer.",
               }
+            : category === "coffee"
+              ? {
+                  tier: "related",
+                  extensionId: "bakery_cafes",
+                  subclassification: "Bakery or breakfast cafe",
+                  reason: "Included as a breakfast venue that serves coffee.",
+                }
             : undefined,
       },
     ];
@@ -680,15 +700,33 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     const drawer = page.locator('section[aria-label="Nearby access drawer"]');
     await drawer.getByRole("button", { name: /Groceries/ }).click();
     await expect(drawer.getByText("1 place").first()).toBeVisible();
-    await expect(drawer.getByRole("button", { name: "Specialty food stores" })).toHaveAttribute(
+    await expect(drawer.getByRole("button", { name: "Local & specialty food" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
 
-    await drawer.getByRole("button", { name: "Specialty food stores" }).click();
+    await drawer.getByRole("button", { name: "Local & specialty food" }).click();
     await expect(drawer.getByText("2 places").first()).toBeVisible();
     await drawer.getByRole("button", { name: "Nearby entries" }).click();
     await expect(drawer.getByText("Specialty food store", { exact: true })).toBeVisible();
+  });
+
+  test("v2 keeps coffee shops primary and exposes related coffee venues on demand", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Coffee/ }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Bakery & breakfast cafes" }).click();
+    await expect(drawer.getByText("2 places").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Bakery or breakfast cafe", { exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
   });
 
   test("ipad v2 keeps the category drawer staged over a live map", async ({ page }) => {

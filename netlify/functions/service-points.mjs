@@ -61,9 +61,11 @@ const CATEGORY_LABELS = {
 
 const GOOGLE_TYPES = {
   coffee: ["cafe", "coffee_shop"],
-  grocery: ["grocery_store", "supermarket"],
+  grocery: ["grocery_store", "supermarket", "discount_supermarket", "hypermarket"],
   library: ["library"],
 };
+
+const GROCERY_PRIMARY_TYPES = GOOGLE_TYPES.grocery;
 
 const GROCERY_SPECIALTY_TYPES = [
   "asian_grocery_store",
@@ -73,19 +75,60 @@ const GROCERY_SPECIALTY_TYPES = [
   "health_food_store",
   "market",
 ];
+const GROCERY_DISTINCTIVE_SPECIALTY_TYPES = [
+  "asian_grocery_store",
+  "butcher_shop",
+  "farmers_market",
+  "health_food_store",
+];
 const GROCERY_CONVENIENCE_TYPES = ["convenience_store", "general_store"];
+const GROCERY_FULL_SERVICE_TYPES = ["supermarket", "discount_supermarket", "hypermarket"];
+const GROCERY_FULL_SERVICE_NAME_PATTERN =
+  /\b(supermarket|hannaford|market\s*32|price\s*(?:rite|chopper)|shop\s*rite|target\s+grocery|whole\s+foods|trader\s+joe'?s|aldi|lidl|tops|wegmans|stop\s*&?\s*shop|key\s+food|walmart)\b/i;
+const GROCERY_SPECIALTY_NAME_PATTERN =
+  /\b(asian|halal|indian|west\s*indian|butcher|farm|orchard|co-?op|health\s*food|vitamin|trading)\b/i;
+const GROCERY_FALLBACK_NAME_PATTERN =
+  /\b(convenience|bodega|corner\s+store|deli(?:catessen)?|mini\s*mart|quick\s*mart|gas\s+mart)\b/i;
+const COFFEE_PRIMARY_NAME_PATTERN =
+  /\b(coffee|cafe|café|brew|espresso|roast|java|bean|grounds|starbucks|dunkin)\b/i;
+const COFFEE_RELATED_TYPES = [
+  "bakery",
+  "bagel_shop",
+  "breakfast_restaurant",
+  "diner",
+  "sandwich_shop",
+];
+const COFFEE_FALLBACK_TYPES = [
+  "convenience_store",
+  "gas_station",
+  "hamburger_restaurant",
+];
+const COFFEE_FALLBACK_NAME_PATTERN =
+  /\b(snack\s+shack|convenience|gas\s+station|mcdonald'?s|stewart'?s|balloons?|gift\s+shop)\b/i;
 
 const RESULT_EXTENSIONS = {
   grocery: [
     {
       id: "specialty_food",
-      label: "Specialty food stores",
-      description: "Asian groceries, butchers, farmers markets, and other focused food stores.",
+      label: "Local & specialty food",
+      description: "Local groceries, Asian markets, butchers, farm markets, and focused food stores.",
     },
     {
       id: "convenience_food",
       label: "Convenience stores",
       description: "Smaller convenience and general stores as a last-mile fallback.",
+    },
+  ],
+  coffee: [
+    {
+      id: "bakery_cafes",
+      label: "Bakery & breakfast cafes",
+      description: "Bakeries, bagel shops, diners, and breakfast places that serve coffee.",
+    },
+    {
+      id: "coffee_available",
+      label: "Coffee available",
+      description: "Fast-food and convenience locations where coffee is available but not the focus.",
     },
   ],
   dog_parks: [
@@ -236,6 +279,10 @@ function extensionsFor(category, query) {
     return RESULT_EXTENSIONS.grocery;
   }
 
+  if (category === "coffee") {
+    return RESULT_EXTENSIONS.coffee;
+  }
+
   if (category === "custom" && isDogParkQuery(query)) {
     return RESULT_EXTENSIONS.dog_parks;
   }
@@ -382,28 +429,88 @@ function normalizeGooglePlace(place, category, bounds, categoryLabel) {
 
   if (category === "grocery") {
     const types = point.rawData.types;
-    const isConvenience = types.some((type) => GROCERY_CONVENIENCE_TYPES.includes(type));
-    const isSpecialty = types.some((type) => GROCERY_SPECIALTY_TYPES.includes(type));
+    const isPrimary =
+      types.some((type) => GROCERY_FULL_SERVICE_TYPES.includes(type)) ||
+      GROCERY_FULL_SERVICE_NAME_PATTERN.test(point.name);
+    const isConvenience =
+      types.some((type) => GROCERY_CONVENIENCE_TYPES.includes(type)) ||
+      GROCERY_FALLBACK_NAME_PATTERN.test(point.name);
+    const isDistinctiveSpecialty =
+      types.some((type) => GROCERY_DISTINCTIVE_SPECIALTY_TYPES.includes(type)) ||
+      GROCERY_SPECIALTY_NAME_PATTERN.test(point.name);
+    const isSpecialty =
+      types.some((type) => GROCERY_SPECIALTY_TYPES.includes(type)) ||
+      types.includes("grocery_store") ||
+      isDistinctiveSpecialty;
 
-    point.match = isConvenience
-      ? {
-          tier: "fallback",
-          extensionId: "convenience_food",
-          subclassification: "Convenience store",
-          reason: "Included as a smaller last-mile food option, not a full grocery store.",
-        }
-      : isSpecialty
-        ? {
-            tier: "related",
-            extensionId: "specialty_food",
-            subclassification: "Specialty food store",
-            reason: "Included as a focused food retailer that may complement a full grocery store.",
-          }
-        : {
-            tier: "primary",
-            subclassification: "Full grocery",
-            reason: "Provider types identify this as a grocery store or supermarket.",
-          };
+    if (isPrimary) {
+      point.match = {
+        tier: "primary",
+        subclassification: "Full grocery",
+        reason: "Provider types identify this as a grocery store or supermarket.",
+      };
+    } else if (isDistinctiveSpecialty) {
+      point.match = {
+        tier: "related",
+        extensionId: "specialty_food",
+        subclassification: "Specialty food store",
+        reason: "Included as a focused food retailer that may complement a full grocery store.",
+      };
+    } else if (isConvenience) {
+      point.match = {
+        tier: "fallback",
+        extensionId: "convenience_food",
+        subclassification: "Convenience store",
+        reason: "Included as a smaller last-mile food option, not a full grocery store.",
+      };
+    } else if (isSpecialty) {
+      point.match = {
+        tier: "related",
+        extensionId: "specialty_food",
+        subclassification: "Local or specialty food store",
+        reason: "Included as a local or focused food retailer that may complement a full grocery store.",
+      };
+    } else {
+      point.match = {
+        tier: "fallback",
+        subclassification: "Unclassified food retailer",
+        reason: "Provider types do not establish a supported grocery subclassification.",
+      };
+    }
+  }
+
+  if (category === "coffee") {
+    const types = point.rawData.types;
+    const hasRelatedSignal = types.some((type) => COFFEE_RELATED_TYPES.includes(type));
+    const hasFallbackSignal =
+      types.some((type) => COFFEE_FALLBACK_TYPES.includes(type)) ||
+      COFFEE_FALLBACK_NAME_PATTERN.test(point.name) ||
+      (types.includes("fast_food_restaurant") && !hasRelatedSignal);
+    const hasPrimarySignal =
+      COFFEE_PRIMARY_NAME_PATTERN.test(point.name) ||
+      (types.includes("coffee_shop") && !hasFallbackSignal && !hasRelatedSignal);
+
+    if (hasPrimarySignal) {
+      point.match = {
+        tier: "primary",
+        subclassification: "Coffee shop or cafe",
+        reason: "The name and provider types indicate that coffee or cafe service is a primary focus.",
+      };
+    } else if (hasFallbackSignal) {
+      point.match = {
+        tier: "fallback",
+        extensionId: "coffee_available",
+        subclassification: "Coffee available",
+        reason: "Coffee is available here, but the location is primarily fast food or convenience retail.",
+      };
+    } else {
+      point.match = {
+        tier: "related",
+        extensionId: "bakery_cafes",
+        subclassification: "Bakery or breakfast cafe",
+        reason: "Included as a bakery, breakfast place, or similar venue that serves coffee.",
+      };
+    }
   }
 
   return isInsideBounds(point, bounds) ? point : undefined;
@@ -427,6 +534,18 @@ function isRelevantGooglePoint(point, category, query) {
   if (category === "custom" && isDogParkQuery(query)) {
     const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
     return types.includes("dog_park") || DOG_PARK_RESULT_PATTERN.test(point.name);
+  }
+
+  if (category === "grocery") {
+    const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
+    return [...GROCERY_PRIMARY_TYPES, ...GROCERY_SPECIALTY_TYPES, ...GROCERY_CONVENIENCE_TYPES].some(
+      (type) => types.includes(type),
+    );
+  }
+
+  if (category === "coffee") {
+    const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
+    return GOOGLE_TYPES.coffee.some((type) => types.includes(type));
   }
 
   if (category !== "laundry") {
