@@ -80,7 +80,13 @@ export type PoiLayerSource = PoiSource | "mixed";
 
 export type ServicePointCategory = "laundry" | "coffee" | "grocery" | "library" | "custom";
 
-export type ServicePointSource = "google_places" | "ny_libraries" | "nj_libraries" | "hybrid";
+export type ServicePointSource =
+  | "google_places"
+  | "ny_libraries"
+  | "nj_libraries"
+  | "hybrid"
+  | "openstreetmap"
+  | "official_local";
 
 export type ServicePointConfidence = "high" | "medium" | "low";
 
