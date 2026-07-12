@@ -16,6 +16,7 @@ const OVERPASS_URLS = Array.from(
   new Set(
     [
       process.env.OVERPASS_API_URL?.trim(),
+      "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
       "https://lz4.overpass-api.de/api/interpreter",
       "https://overpass-api.de/api/interpreter",
     ].filter(Boolean),

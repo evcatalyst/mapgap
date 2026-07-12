@@ -403,7 +403,7 @@ test("service-points uses typed OSM dog parks and verifies the Blatnick Park fac
     if (url.includes("overpass")) {
       overpassCalls.push(url);
 
-      if (url.includes("lz4.overpass-api.de")) {
+      if (url.includes("maps.mail.ru")) {
         return jsonResponse({}, false, 504);
       }
 
