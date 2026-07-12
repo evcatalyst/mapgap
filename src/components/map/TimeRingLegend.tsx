@@ -3,11 +3,13 @@ import { getAccessBucketColor } from "../../lib/accessHeat";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 
 type TimeRingLegendProps = {
+  buckets?: number[];
   compact?: boolean;
 };
 
-export function TimeRingLegend({ compact = false }: TimeRingLegendProps) {
+export function TimeRingLegend({ buckets, compact = false }: TimeRingLegendProps) {
   const settings = useMapIsoStore((state) => state.settings);
+  const visibleBuckets = buckets || settings.timeBuckets;
 
   if (compact) {
     return (
@@ -16,7 +18,7 @@ export function TimeRingLegend({ compact = false }: TimeRingLegendProps) {
           <Clock3 className="h-3 w-3 text-emerald-500" aria-hidden="true" />
           <span className="font-semibold text-neutral-950 dark:text-white">Rings</span>
           <div className="ml-1 flex items-center gap-1">
-            {settings.timeBuckets.map((bucket, index) => (
+            {visibleBuckets.map((bucket, index) => (
               <span
                 key={bucket}
                 className="h-1.5 rounded-full"
@@ -41,7 +43,7 @@ export function TimeRingLegend({ compact = false }: TimeRingLegendProps) {
         <Clock3 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
       </div>
       <div className="space-y-2">
-        {settings.timeBuckets.map((bucket, index) => (
+        {visibleBuckets.map((bucket, index) => (
           <div key={bucket} className="flex items-center gap-2">
             <span
               className="h-2 rounded-full"

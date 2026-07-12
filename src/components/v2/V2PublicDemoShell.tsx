@@ -70,6 +70,14 @@ const FALLBACK_BOUNDS: MapBounds = {
 };
 
 const HEATMAP_POINT_LIMIT = 20;
+const WALK_REACH_OPTIONS = [5, 10, 20] as const;
+const DEFAULT_WALK_REACH_MINUTES = 10;
+
+type WalkReachMinutes = (typeof WALK_REACH_OPTIONS)[number];
+
+function getWalkTimeBuckets(minutes: WalkReachMinutes) {
+  return [5, 10, 15, 20].filter((bucket) => bucket <= minutes);
+}
 
 type PointsState = {
   points: ServicePoint[];
@@ -165,6 +173,9 @@ export function V2PublicDemoShell() {
   const [selectedLabel, setSelectedLabel] = useState<string | undefined>();
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>("off");
+  const [walkReachMinutes, setWalkReachMinutes] = useState<WalkReachMinutes>(
+    DEFAULT_WALK_REACH_MINUTES,
+  );
   const [pointsState, setPointsState] = useState<PointsState>(EMPTY_POINTS_STATE);
   const [requestStatus, setRequestStatus] = useState<AsyncStatus>("idle");
   const [requestError, setRequestError] = useState<string | undefined>();
@@ -405,6 +416,7 @@ export function V2PublicDemoShell() {
     setSelectedQuery(undefined);
     setSelectedPointId(null);
     setHeatmapMode("off");
+    setWalkReachMinutes(DEFAULT_WALK_REACH_MINUTES);
     setPointsState(EMPTY_POINTS_STATE);
     setLastSearch(null);
     setRequestStatus("idle");
@@ -431,7 +443,10 @@ export function V2PublicDemoShell() {
     }
   }
 
-  async function updateHeatmap(nextMode: HeatmapMode) {
+  async function updateHeatmap(
+    nextMode: HeatmapMode,
+    walkMinutesOverride: WalkReachMinutes = walkReachMinutes,
+  ) {
     setHeatmapMode(nextMode);
     setHeatmapMessage(undefined);
 
@@ -463,8 +478,9 @@ export function V2PublicDemoShell() {
       mobilityMode: "walk",
       isochroneMode: "individual",
       preset: "compact",
-      timeMinutes: nextMode === "drive" ? 15 : 10,
-      timeBuckets: nextMode === "drive" ? [5, 10, 15] : [5, 10],
+      timeMinutes: nextMode === "drive" ? 15 : walkMinutesOverride,
+      timeBuckets:
+        nextMode === "drive" ? [5, 10, 15] : getWalkTimeBuckets(walkMinutesOverride),
       ringSpacingMinutes: 5,
       opacity: 0.28,
       labelDensity: "low",
@@ -487,6 +503,14 @@ export function V2PublicDemoShell() {
 
     if (latestError) {
       setHeatmapMessage("Access heatmap unavailable. POIs are still shown.");
+    }
+  }
+
+  function updateWalkReach(nextMinutes: WalkReachMinutes) {
+    setWalkReachMinutes(nextMinutes);
+
+    if (heatmapMode === "walk") {
+      void updateHeatmap("walk", nextMinutes);
     }
   }
 
@@ -526,6 +550,9 @@ export function V2PublicDemoShell() {
         allowPointCreate={false}
         className="h-dvh min-h-screen"
         fitStoredPoints={false}
+        heatmapBuckets={
+          heatmapMode === "drive" ? [5, 10, 15] : getWalkTimeBuckets(walkReachMinutes)
+        }
         publicMode
         showIsochroneLayers={heatmapMode !== "off"}
         showLegacyData={false}
@@ -576,6 +603,7 @@ export function V2PublicDemoShell() {
           onClose={() => setDrawerModeWithHistory("closed", { replace: true })}
           onExport={exportResults}
           onHeatmapChange={updateHeatmap}
+          onWalkReachChange={updateWalkReach}
           onOpenCategories={() => setDrawerModeWithHistory("categoryPicker")}
           onReset={resetNearbySearch}
           onSelectPoint={selectPoint}
@@ -588,6 +616,7 @@ export function V2PublicDemoShell() {
           selectedPoint={selectedPoint}
           sources={pointsState.sources}
           warnings={pointsState.warnings}
+          walkReachMinutes={walkReachMinutes}
           onRefreshSearch={refreshCurrentSearch}
           onShare={shareCurrentView}
         />
@@ -642,6 +671,7 @@ type BottomDrawerProps = {
   onClose: () => void;
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onOpenCategories: () => void;
   onRefreshSearch: () => void;
   onReset: () => void;
@@ -655,6 +685,7 @@ type BottomDrawerProps = {
   selectedPoint?: ServicePoint;
   sources: ServicePointSource[];
   warnings: string[];
+  walkReachMinutes: WalkReachMinutes;
 };
 
 function BottomDrawer({
@@ -670,6 +701,7 @@ function BottomDrawer({
   onClose,
   onExport,
   onHeatmapChange,
+  onWalkReachChange,
   onOpenCategories,
   onRefreshSearch,
   onReset,
@@ -683,6 +715,7 @@ function BottomDrawer({
   selectedPoint,
   sources,
   warnings,
+  walkReachMinutes,
 }: BottomDrawerProps) {
   const title =
     drawerMode === "categoryPicker"
@@ -794,6 +827,7 @@ function BottomDrawer({
             mapCenter={mapCenter}
             onExport={onExport}
             onHeatmapChange={onHeatmapChange}
+            onWalkReachChange={onWalkReachChange}
             onOpenCategories={onOpenCategories}
             onRefreshSearch={onRefreshSearch}
             onSelectPoint={onSelectPoint}
@@ -806,19 +840,23 @@ function BottomDrawer({
             showList={drawerMode !== "resultsPeek"}
             sources={sources}
             warnings={warnings}
+            walkReachMinutes={walkReachMinutes}
           />
         )}
 
         {drawerMode === "poiDetail" && selectedPoint && (
           <PointDetail
             heatmapMode={heatmapMode}
+            isGeneratingIsochrones={isGeneratingIsochrones}
             mapCenter={mapCenter}
             onExport={onExport}
             onHeatmapChange={onHeatmapChange}
+            onWalkReachChange={onWalkReachChange}
             onSelectNextPoint={onSelectNextPoint}
             onSetDrawerMode={onSetDrawerMode}
             onShare={onShare}
             point={selectedPoint}
+            walkReachMinutes={walkReachMinutes}
           />
         )}
       </div>
@@ -915,6 +953,7 @@ function ResultsContent({
   mapCenter,
   onExport,
   onHeatmapChange,
+  onWalkReachChange,
   onOpenCategories,
   onRefreshSearch,
   onSelectPoint,
@@ -926,6 +965,7 @@ function ResultsContent({
   showList,
   sources,
   warnings,
+  walkReachMinutes,
 }: {
   category: ServicePointCategory | null;
   categoryLabel?: string;
@@ -936,6 +976,7 @@ function ResultsContent({
   mapCenter?: { lat: number; lng: number };
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onOpenCategories: () => void;
   onRefreshSearch: () => void;
   onSelectPoint: (point: ServicePoint) => void;
@@ -947,6 +988,7 @@ function ResultsContent({
   showList: boolean;
   sources: ServicePointSource[];
   warnings: string[];
+  walkReachMinutes: WalkReachMinutes;
 }) {
   const messages = [requestError, heatmapMessage, ...warnings].filter(
     (message): message is string => Boolean(message),
@@ -995,6 +1037,15 @@ function ResultsContent({
             onHeatmapChange={onHeatmapChange}
           />
         </div>
+
+        {heatmapMode === "walk" && (
+          <WalkReachControl
+            className="mt-3"
+            disabled={isGeneratingIsochrones}
+            value={walkReachMinutes}
+            onChange={onWalkReachChange}
+          />
+        )}
 
         {compactMessage && (
           <p
@@ -1121,22 +1172,28 @@ function PointRow({
 
 function PointDetail({
   heatmapMode,
+  isGeneratingIsochrones,
   mapCenter,
   onExport,
   onHeatmapChange,
+  onWalkReachChange,
   onSelectNextPoint,
   onSetDrawerMode,
   onShare,
   point,
+  walkReachMinutes,
 }: {
   heatmapMode: HeatmapMode;
+  isGeneratingIsochrones: boolean;
   mapCenter?: { lat: number; lng: number };
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
+  onWalkReachChange: (minutes: WalkReachMinutes) => void;
   onSelectNextPoint: () => void;
   onSetDrawerMode: (mode: DrawerMode) => void;
   onShare: () => void;
   point: ServicePoint;
+  walkReachMinutes: WalkReachMinutes;
 }) {
   const distance = formatDistanceMiles(getDistanceMiles(mapCenter, point.location));
 
@@ -1167,13 +1224,23 @@ function PointDetail({
             <span>
               {heatmapMode === "off"
                 ? "Show a walk or drive access area to test practical reach."
-                : `${formatHeatmapMode(heatmapMode)} access heat is active for this result set.`}
+                : heatmapMode === "walk"
+                  ? `${walkReachMinutes}-minute walk access heat is active for this result set.`
+                  : `${formatHeatmapMode(heatmapMode)} access heat is active for this result set.`}
             </span>
           </p>
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
             Routing uses the configured MapGap Valhalla or ORS service. Provider coverage may vary.
           </p>
         </div>
+        {heatmapMode === "walk" && (
+          <WalkReachControl
+            className="mt-4"
+            disabled={isGeneratingIsochrones}
+            value={walkReachMinutes}
+            onChange={onWalkReachChange}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -1197,6 +1264,50 @@ function PointDetail({
           <Share2 className="h-4 w-4" aria-hidden="true" />
           Share
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function WalkReachControl({
+  className,
+  disabled,
+  onChange,
+  value,
+}: {
+  className?: string;
+  disabled?: boolean;
+  onChange: (minutes: WalkReachMinutes) => void;
+  value: WalkReachMinutes;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        Walk reach
+      </span>
+      <div
+        className="inline-flex rounded-xl border border-neutral-200 bg-white p-1 dark:border-neutral-700 dark:bg-neutral-950"
+        role="group"
+        aria-label="Walking time"
+      >
+        {WALK_REACH_OPTIONS.map((minutes) => (
+          <button
+            key={minutes}
+            type="button"
+            className={cn(
+              "min-h-9 min-w-12 rounded-lg px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+              value === minutes
+                ? "bg-emerald-700 text-white"
+                : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
+            )}
+            disabled={disabled}
+            onClick={() => onChange(minutes)}
+            aria-pressed={value === minutes}
+            aria-label={`${minutes} minute walk reach`}
+          >
+            {minutes} min
+          </button>
+        ))}
       </div>
     </div>
   );

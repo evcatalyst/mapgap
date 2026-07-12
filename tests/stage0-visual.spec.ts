@@ -50,7 +50,10 @@ async function expectInsideViewport(page: Page, locator: Locator) {
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
 }
 
-async function mockAppRoutes(page: Page) {
+async function mockAppRoutes(
+  page: Page,
+  options?: { onIsochroneRequest?: (body: Record<string, unknown>) => void },
+) {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -208,6 +211,9 @@ async function mockAppRoutes(page: Page) {
   });
 
   await page.route("**/api/routing/isochrones", async (route) => {
+    options?.onIsochroneRequest?.(
+      (route.request().postDataJSON() || {}) as Record<string, unknown>,
+    );
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -374,11 +380,66 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(page.getByText("Viewport Laundromat A")).toBeVisible();
 
     await drawer.getByRole("button", { name: "Walk" }).click();
+    await expect(drawer.getByRole("group", { name: "Walking time" })).toBeVisible();
     await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
     await drawer.getByRole("button", { name: "Reset nearby search" }).click();
     await expect(page.getByRole("button", { name: "Explore Nearby" })).toBeVisible();
     await expect(page.getByText("Viewport Laundromat A")).toHaveCount(0);
     await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(0);
+  });
+
+  test("v2 expands walking reach without repeating the place search", async ({ page }) => {
+    const routingRequests: Array<Record<string, unknown>> = [];
+    let servicePointSearches = 0;
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await mockAppRoutes(page, {
+      onIsochroneRequest: (body) => routingRequests.push(body),
+    });
+    await page.route("**/api/service-points**", async (route) => {
+      servicePointSearches += 1;
+      await route.fallback();
+    });
+
+    await page.goto("/v2");
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Laundry/ }).click();
+    await drawer.getByRole("button", { name: "Walk" }).click();
+    await expect(drawer.getByRole("button", { name: "10 minute walk reach" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await drawer.getByRole("button", { name: "20 minute walk reach" }).click();
+    await expect(drawer.getByRole("button", { name: "20 minute walk reach" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    expect(servicePointSearches).toBe(1);
+    expect(routingRequests.length).toBeGreaterThanOrEqual(4);
+    expect(routingRequests.at(-1)?.ranges).toEqual([300, 600, 900, 1200]);
+  });
+
+  test("v2 service markers shrink as the map zooms out", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mockAppRoutes(page);
+
+    await page.goto("/v2?category=laundry&bbox=-74.08,40.68,-74.02,40.74");
+    const marker = page.locator(".mapgap-service-marker").first();
+    await expect(marker).toBeVisible();
+    const closeSize = await marker.boundingBox();
+
+    const zoomOut = page.getByRole("button", { name: "Zoom out" });
+    await zoomOut.click();
+    await zoomOut.click();
+    await zoomOut.click();
+    await zoomOut.click();
+    const regionalSize = await marker.boundingBox();
+
+    expect(regionalSize?.width ?? 999).toBeLessThan(closeSize?.width ?? 0);
+    expect(regionalSize?.width ?? 0).toBeLessThanOrEqual(18);
   });
 
   for (const viewport of mobileEdgeViewports) {
