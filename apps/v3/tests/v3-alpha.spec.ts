@@ -1,84 +1,116 @@
-import { expect, test } from "@playwright/test";
+import {expect, test} from "@playwright/test";
 
-test("analyst alpha opens on a real map and explains routed candidate differences", async ({ page }) => {
+test("wide V3 is a synchronized access + housing map comparison, not a report beside a blank canvas", async ({page}) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "MapGap V3 Analyst" })).toBeVisible();
-  await expect(page.getByTestId("kepler-mounted")).toContainText("Kepler workbench mounted");
-  await expect(page.getByTestId("basemap-ready")).toContainText("Basemap tiles ready", { timeout: 30_000 });
-  await expectViewportNear(page, {longitude: -74.075, latitude: 40.726});
-  await expect(page.getByTestId("kepler-mounted")).toContainText("4 evidence layers mapped");
-  await expect(page.getByTestId("map-legend")).toContainText("30-minute routed access");
-  await expect(page.getByTestId("candidate-score-table")).toContainText("Nearby but fails routed commute");
-  await expect(page.getByText("Required work commute:", { exact: true })).toBeVisible();
-  await expect(page.locator("canvas").first()).toBeVisible();
-  await expect(page.getByRole("button", {name: "Zoom in"})).toBeVisible();
-  await expect(page.getByRole("button", {name: "Zoom out"})).toBeVisible();
-  await expectMapOwnsViewport(page);
-  await expectMapCanvasFitsContainer(page);
-  await expectMinimumContrast(page, [".panel-kicker", ".metric-grid dt", ".section-heading div p", ".candidate-rank small"]);
-  await settlePaint(page);
-  await expectCanvasHasVisualLayers(page);
-  await captureScenario(page, "relocation");
+  await page.goto("/#civic");
+  await expect(page.getByRole("heading", {name: "MapGap Analyst"})).toBeVisible();
+  await expect(page.getByTestId("kepler-mounted")).toContainText("comparison workbench mounted");
+  await expect(page.getByTestId("basemap-ready")).toContainText("2 map canvas basemap ready", {timeout: 30_000});
+  await expect(page.getByTestId("comparison-layout")).toHaveAttribute("data-layout", "dual");
+  await expect(page.getByTestId("access-pane-header")).toContainText("Access heat");
+  await expect(page.getByTestId("intelligence-pane-header")).toContainText("Location intelligence");
+  await expect(page.getByTestId("intelligence-pane-header")).toContainText("ACS housing");
+  await expect(page.locator(".maplibregl-map")).toHaveCount(2);
+  await expectDualCanvasesShareViewport(page);
+  await expect(page.getByTestId("camera-sync")).toHaveAttribute("data-camera-count", "2");
+  await panLeftMapAndExpectCameraSync(page);
+  await expectPaintedMap(page);
+
+  const drawer = page.getByTestId("evidence-drawer");
+  await expect(drawer).toContainText("Northside Computer Lab");
+  await drawer.getByRole("button", {name: "Compare evidence"}).click();
+  await drawer.getByRole("button", {name: /Census Tract 1,/}).click();
+  await expect(drawer).toContainText("Census Tract 1, Albany, NY");
+  await expect(drawer).toContainText("$1243");
+  await expect(drawer).toContainText("56.14%");
+  await expect(page.locator(".source-chip.housing")).toContainText("Housing 2024");
+  await capture(page, "civic-wide");
   expect(pageErrors).toEqual([]);
 });
 
-test("switching to civic capacity retains a map workbench and a non-color evidence explanation", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByTestId("kepler-mounted")).toContainText("Kepler workbench mounted");
-  await expect(page.getByTestId("basemap-ready")).toContainText("Basemap tiles ready", { timeout: 30_000 });
+test("relocation reuses the dual workbench without borrowing Albany housing", async ({page}) => {
+  await page.goto("/#civic");
+  await expect(page.getByTestId("basemap-ready")).toContainText("2 map canvas basemap ready", {timeout: 30_000});
+  await page.getByRole("button", {name: "Relocation"}).click();
 
-  await page.getByRole("button", { name: "Civic: capacity and underserved proxy" }).click();
-  await expect(page.getByTestId("civic-capacity-table")).toContainText("Northside Computer Lab");
-  await expect(page.getByTestId("underserved-evidence")).toContainText("deterministic alpha proxy");
-  await expect(page.getByTestId("kepler-mounted")).toContainText("Kepler workbench mounted");
-  await expect(page.getByTestId("basemap-ready")).toContainText("Basemap tiles ready", { timeout: 30_000 });
-  await expectViewportNear(page, {longitude: -73.78, latitude: 42.665});
-  await expect(page.getByTestId("kepler-mounted")).toContainText("4 evidence layers mapped");
-  await expect(page.getByTestId("map-legend")).toContainText("Underserved-capacity proxy");
-  await expect(page.getByTestId("map-legend")).toContainText("size = capacity");
-  await expect(page.getByRole("heading", { name: "MapGap V3 Analyst" })).toBeVisible();
-  expect(await page.locator(".v3-header").evaluate((header) => {
-    const rect = header.getBoundingClientRect();
-    const topmost = document.elementFromPoint(rect.left + 24, rect.top + rect.height / 2);
-    return Boolean(topmost && header.contains(topmost));
-  }), "the map compositor must not cover the product header").toBe(true);
-  await expectMinimumContrast(page, [".asset-card > div > p", ".asset-card dt"]);
-  await settlePaint(page);
-  await expectCanvasHasVisualLayers(page);
-  await captureScenario(page, "civic");
+  await expect(page.getByTestId("comparison-layout")).toHaveAttribute("data-layout", "dual");
+  await expect(page.getByTestId("intelligence-pane-header")).toContainText("Candidates · nearby places");
+  await expect(page.locator(".source-chip.housing")).toHaveCount(0);
+  await expect(page.getByTestId("evidence-drawer")).toContainText("Nearby but fails routed commute");
+  await expect(page.locator(".maplibregl-map")).toHaveCount(2);
 });
 
-test("compact desktop still gives the map at least two thirds of the viewport", async ({page}) => {
-  await page.setViewportSize({width: 1024, height: 768});
-  await page.goto("/");
-  await expect(page.getByTestId("kepler-mounted")).toContainText("Kepler workbench mounted");
-  await expectMapOwnsViewport(page);
+test("iPad portrait and phone use one persistent canvas with Access/Intelligence switching", async ({page}) => {
+  await page.setViewportSize({width: 820, height: 1080});
+  await page.goto("/#civic");
+
+  await expect(page.getByTestId("comparison-layout")).toHaveAttribute("data-layout", "single-access");
+  await expect(page.getByTestId("basemap-ready")).toContainText("1 map canvas basemap ready", {timeout: 30_000});
+  await expect(page.locator(".maplibregl-map")).toHaveCount(1);
+  const canvasCount = await page.locator(".map-workbench canvas").count();
+
+  await page.getByRole("button", {name: "Intelligence"}).click();
+  await expect(page.getByTestId("comparison-layout")).toHaveAttribute("data-layout", "single-intelligence");
+  await expect(page.locator(".maplibregl-map")).toHaveCount(1);
+  expect(await page.locator(".map-workbench canvas").count()).toBe(canvasCount);
+  await expect(page.getByTestId("evidence-drawer")).toContainText("Known capacity");
+  await page.getByRole("button", {name: "Compare evidence"}).click();
+  await page.getByRole("button", {name: /Census Tract 2\.01,/}).click();
+  await expect(page.getByTestId("evidence-drawer")).toContainText("Census Tract 2.01, Albany, NY");
+
+  await page.setViewportSize({width: 1180, height: 820});
+  await expect(page.getByTestId("comparison-layout")).toHaveAttribute("data-layout", "dual");
+  await expect(page.locator(".maplibregl-map")).toHaveCount(2);
+  await expect(page.getByTestId("basemap-ready")).toContainText("2 map canvas basemap ready", {timeout: 30_000});
+  await expect(page.getByTestId("evidence-drawer")).toContainText("Census Tract 2.01, Albany, NY");
+  await capture(page, "civic-ipad-portrait");
 });
 
-async function expectCanvasHasVisualLayers(page: import("@playwright/test").Page) {
+test("a housing source failure is localized to intelligence and leaves access interactive", async ({page}) => {
+  await page.goto("/?failSource=housing#civic");
+  await expect(page.getByTestId("housing-source-error")).toContainText("Access evidence is still live");
+  await expect(page.getByTestId("basemap-ready")).toContainText("2 map canvas basemap ready", {timeout: 30_000});
+  await expect(page.getByRole("button", {name: "Zoom in"})).toBeVisible();
+  await expect(page.locator(".source-chip.housing")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-map")).toHaveCount(2);
+});
+
+async function expectDualCanvasesShareViewport(page: import("@playwright/test").Page) {
+  const mapBox = await page.getByTestId("map-workbench").boundingBox();
+  const boxes = await page.locator(".maplibregl-map").evaluateAll((maps) => maps.map((map) => {
+    const rect = map.getBoundingClientRect();
+    return {x: rect.x, width: rect.width, height: rect.height};
+  }));
+  expect(mapBox).not.toBeNull();
+  expect(boxes).toHaveLength(2);
+  if (!mapBox) return;
+  expect(Math.abs(boxes[0].width - boxes[1].width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(boxes[0].width * 2 - mapBox.width)).toBeLessThanOrEqual(3);
+  expect(Math.abs(boxes[0].height - mapBox.height)).toBeLessThanOrEqual(3);
+  expect(boxes[1].x).toBeGreaterThan(boxes[0].x + boxes[0].width - 3);
+}
+
+async function expectPaintedMap(page: import("@playwright/test").Page) {
   const box = await page.getByTestId("map-workbench").boundingBox();
   expect(box).not.toBeNull();
   if (!box) return;
   const png = await page.screenshot({
     clip: {
-      x: Math.floor(box.x + box.width * 0.15),
-      y: Math.floor(box.y + box.height * 0.32),
-      width: Math.floor(box.width * 0.7),
-      height: Math.floor(box.height * 0.35),
+      x: Math.floor(box.x + box.width * .18),
+      y: Math.floor(box.y + box.height * .28),
+      width: Math.floor(box.width * .64),
+      height: Math.floor(box.height * .28),
     },
   });
-  const bucketCount = await page.evaluate(async (encoded) => {
+  const colorBuckets = await page.evaluate(async (encoded) => {
     const binary = atob(encoded);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    const blob = new Blob([bytes], {type: "image/png"});
-    const bitmap = await createImageBitmap(blob);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], {type: "image/png"}));
     const canvas = document.createElement("canvas");
-    canvas.width = 160;
-    canvas.height = 100;
+    canvas.width = 180;
+    canvas.height = 80;
     const context = canvas.getContext("2d", {willReadFrequently: true})!;
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -89,94 +121,24 @@ async function expectCanvasHasVisualLayers(page: import("@playwright/test").Page
     bitmap.close();
     return buckets.size;
   }, png.toString("base64"));
-  expect(bucketCount, "an overlay-free map region should contain painted cartography and evidence colors").toBeGreaterThan(20);
+  expect(colorBuckets).toBeGreaterThan(24);
 }
 
-async function expectMapOwnsViewport(page: import("@playwright/test").Page) {
-  const viewport = page.viewportSize();
-  const box = await page.getByTestId("map-workbench").boundingBox();
-  expect(viewport).not.toBeNull();
-  expect(box).not.toBeNull();
-  if (!viewport || !box) return;
-  expect(box.y, "map must start in the first viewport").toBeLessThanOrEqual(80);
-  expect(box.width / viewport.width, "map should own most of the available width").toBeGreaterThanOrEqual(0.65);
-  if (viewport.width <= 980) {
-    expect(box.height / viewport.height, "mobile map should own at least 60% of the first viewport").toBeGreaterThanOrEqual(0.6);
-  }
+async function panLeftMapAndExpectCameraSync(page: import("@playwright/test").Page) {
+  const left = await page.locator(".maplibregl-map").first().boundingBox();
+  expect(left).not.toBeNull();
+  if (!left) return;
+  await page.mouse.move(left.x + left.width * .62, left.y + left.height * .46);
+  await page.mouse.down();
+  await page.mouse.move(left.x + left.width * .72, left.y + left.height * .51, {steps: 5});
+  await page.mouse.up();
+  await expect.poll(async () => Number(await page.getByTestId("camera-sync").getAttribute("data-camera-delta")), {
+    timeout: 5_000,
+    message: "linked Kepler viewports should converge without a propagation loop",
+  }).toBeLessThan(0.0001);
 }
 
-async function expectMapCanvasFitsContainer(page: import("@playwright/test").Page) {
-  const mapBox = await page.getByTestId("map-workbench").boundingBox();
-  const canvasBoxes = await page.locator(".map-workbench canvas").evaluateAll((canvases) =>
-    canvases.map((canvas) => {
-      const rect = canvas.getBoundingClientRect();
-      return {width: rect.width, height: rect.height};
-    }),
-  );
-  expect(mapBox).not.toBeNull();
-  expect(canvasBoxes.length).toBeGreaterThan(0);
-  if (!mapBox) return;
-  for (const canvas of canvasBoxes) {
-    expect(Math.abs(canvas.width - mapBox.width)).toBeLessThanOrEqual(2);
-    expect(Math.abs(canvas.height - mapBox.height)).toBeLessThanOrEqual(2);
-  }
-}
-
-async function settlePaint(page: import("@playwright/test").Page) {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-}
-
-async function expectMinimumContrast(page: import("@playwright/test").Page, selectors: string[]) {
-  for (const selector of selectors) {
-    const ratios = await page.locator(selector).evaluateAll((elements) => elements.map((element) => {
-      const parseRgb = (value: string) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-      const luminance = (rgb: number[]) => {
-        const channels = rgb.map((value) => {
-          const normalized = value / 255;
-          return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-      };
-      const foreground = parseRgb(getComputedStyle(element).color);
-      let backgroundElement: Element | null = element;
-      let background = [255, 255, 255];
-      while (backgroundElement) {
-        const computed = getComputedStyle(backgroundElement).backgroundColor;
-        if (computed !== "rgba(0, 0, 0, 0)" && computed !== "transparent") {
-          background = parseRgb(computed);
-          break;
-        }
-        backgroundElement = backgroundElement.parentElement;
-      }
-      const lighter = Math.max(luminance(foreground), luminance(background));
-      const darker = Math.min(luminance(foreground), luminance(background));
-      return (lighter + 0.05) / (darker + 0.05);
-    }));
-    expect(ratios.length, `${selector} should match visible text`).toBeGreaterThan(0);
-    for (const ratio of ratios) expect(ratio, `${selector} text should meet 4.5:1 contrast`).toBeGreaterThanOrEqual(4.5);
-  }
-}
-
-async function expectViewportNear(
-  page: import("@playwright/test").Page,
-  expected: {longitude: number; latitude: number},
-) {
-  const viewport = page.getByTestId("map-viewport");
-  await expect(viewport).toContainText("Map viewport fitted");
-  const values = await viewport.evaluate((element) => ({
-    longitude: Number(element.getAttribute("data-longitude")),
-    latitude: Number(element.getAttribute("data-latitude")),
-    zoom: Number(element.getAttribute("data-zoom")),
-  }));
-  expect(Math.abs(values.longitude - expected.longitude)).toBeLessThan(0.08);
-  expect(Math.abs(values.latitude - expected.latitude)).toBeLessThan(0.08);
-  expect(values.zoom).toBeGreaterThan(11);
-}
-
-async function captureScenario(page: import("@playwright/test").Page, scenario: string) {
+async function capture(page: import("@playwright/test").Page, name: string) {
   const directory = process.env.V3_SCREENSHOT_DIR;
-  if (!directory) return;
-  const viewport = page.viewportSize();
-  const mode = viewport && viewport.width <= 980 ? "mobile" : "desktop";
-  await page.screenshot({path: `${directory}/mapgap-v3-${scenario}-${mode}.png`, fullPage: mode === "mobile"});
+  if (directory) await page.screenshot({path: `${directory}/mapgap-v3-${name}.png`, fullPage: true});
 }

@@ -9,21 +9,24 @@ import {
 test("V3 loads a real token-free basemap from one approved origin with complete attribution", async ({ page }) => {
   const requests: string[] = [];
   const successfulMapResources: string[] = [];
+  const tileRequests: string[] = [];
   page.on("request", (request) => requests.push(request.url()));
   page.on("response", (response) => {
     if (response.ok() && response.url().startsWith(TOKEN_FREE_MAP_ORIGIN)) {
       successfulMapResources.push(response.url());
+      if (/\.pbf(?:\?|$)/.test(response.url())) tileRequests.push(response.url());
     }
   });
 
   expect(isTokenFreeMapStyle(TOKEN_FREE_MAP_STYLE)).toBe(true);
   expect(TOKEN_FREE_MAP_STYLE.url).toBe(TOKEN_FREE_MAP_STYLE_URL);
   const documentResponse = await page.goto("/");
-  await expect(page.getByTestId("kepler-mounted")).toContainText("Kepler workbench mounted");
-  await expect(page.getByTestId("basemap-ready")).toContainText("Basemap tiles ready", { timeout: 30_000 });
+  await expect(page.getByTestId("kepler-mounted")).toContainText("comparison workbench mounted");
+  await expect(page.getByTestId("basemap-ready")).toContainText("2 map canvas basemap ready", { timeout: 30_000 });
 
   expect(successfulMapResources).toContain(TOKEN_FREE_MAP_STYLE_URL);
   expect(successfulMapResources.some((url) => /\.pbf(?:\?|$)/.test(url))).toBe(true);
+  expect(tileRequests.length, "synchronized dual maps should stay inside the qualified initial tile cap").toBeLessThanOrEqual(96);
 
   const pageOrigin = new URL(page.url()).origin;
   const remoteOrigins = new Set(
@@ -68,9 +71,9 @@ test("a basemap outage offers retry and V2 recovery instead of a permanent blank
 
   const recovery = page.getByTestId("basemap-error");
   await expect(recovery).toBeVisible({ timeout: 20_000 });
-  await expect(recovery).toContainText("Your decision evidence is still safe");
-  await expect(recovery.getByRole("button", {name: "Retry map"})).toBeVisible();
-  await expect(recovery.getByRole("link", {name: "Open focused V2"})).toHaveAttribute("href", /\/v2$/);
+  await expect(recovery).toContainText("project and analysis evidence remain unchanged");
+  await expect(recovery.getByRole("button", {name: "Retry"})).toBeVisible();
+  await expect(page.getByRole("link", {name: "Open V2"})).toHaveAttribute("href", /\/v2$/);
 });
 
 function remoteOriginsFromDirective(csp: string, directiveName: string) {

@@ -6,7 +6,12 @@
   "description": "Framework-neutral, versioned MapGap project contract shared by V2 and V3.",
   "exports": {
     ".": "./src/index.ts",
-    "./fixtures": "./src/fixtures.ts"
+    "./fixtures": "./src/fixtures.ts",
+    "./analysis": "./src/analysis.ts",
+    "./analysis-fixtures": "./src/analysis-fixtures.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "files": [
     "src"

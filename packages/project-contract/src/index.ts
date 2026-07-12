@@ -1,8 +1,13 @@
 /**
  * MapGap's portable project contract.  This package deliberately has no UI,
  * rendering, state-management, routing-provider, or third-party dependency.
- * It is the only object V2 and V3 are allowed to exchange directly.
+ * It is the only object V2 and V3 exchange as portable project state. The
+ * separately versioned analysis bundle exported below carries bounded,
+ * derived visualization data and cannot alter project semantics.
  */
+
+export * from "./analysis";
+export * from "./analysis-fixtures";
 
 export const PROJECT_SCHEMA_VERSION = "mapgap-project/v1" as const;
 export const V3_VIEW_ATTACHMENT_VERSION = "mapgap-v3-view/v1" as const;
