@@ -152,11 +152,12 @@ Goal: create a separately deployable analyst-first MapGap that uses the best of
 Kepler.gl, MapLibre, and deck.gl without adding their weight or release risk to
 V2. See the [Kepler.gl V3 evaluation](reports/kepler-gl-evaluation.md).
 
-Status: `V3.0` and `V3.1` are implemented as a fixture-only, read-only public
-prerelease in `apps/v3` and independently deployed at
-`https://mapgap-v3-preview.netlify.app`. It has no V2 route and is not approved
-for partner data or production. Production remains blocked on the documented
-bundle, accessibility, scale, identity, persistence, SLO, and operational gates.
+Status: `V3.0` and `V3.1` are deployed as a fixture-only, read-only public
+prerelease. The `V3.2` comparison workspace is implemented on
+`codex/v3-comparison-workspace` and awaits review/deployment. It has no V2 route
+and is not approved for partner data or production. Production remains blocked
+on the documented bundle, accessibility, identity, persistence, SLO, SBOM, and
+operational gates.
 
 Architecture:
 
@@ -187,10 +188,16 @@ Milestones:
   basemap with explicit OpenMapTiles/OpenStreetMap attribution and no provider
   token; map-first desktop/mobile presentation; contract, parity, browser,
   request-allowlist, viewport, and scale-policy checks.
-- `V3.2 - Partner beta` — **pending**: validate the two implemented presets
-  with a bounded analyst cohort; add approved real project/result inputs, saved
-  views, evidence exports, telemetry, accessibility, 100k/1M scale evidence,
-  deployed CSP/WebGL recovery, and browser matrix evidence.
+- `V3.2 - Comparison workspace` — **implemented on the comparison branch;
+  partner validation pending**: native synchronized Kepler dual maps on wide
+  containers; one-canvas Access/Intelligence mode on iPad portrait and phone;
+  shared selection/evidence drawer; V2 access-surface contract; bounded ACS
+  2024/TIGER 2023 housing materialization; explicit pane masks; localized source
+  failure; byte/coordinate/framebuffer qualification; Arrow-query/MVT/PMTiles
+  scale contracts; and fail-closed commercial listing/parcel governance.
+  Before partner beta, deploy the reviewed branch, validate it with a bounded
+  analyst cohort, add approved real project/result inputs and evidence exports,
+  complete accessibility/browser telemetry, and exercise 100k/1M real datasets.
 - `V3.3 - Production`: add only the persistence, permissions, operations, and
   support capabilities proven necessary by the beta; publish independent SLOs
   and rollback procedures.

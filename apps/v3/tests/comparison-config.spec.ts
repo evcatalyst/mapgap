@@ -18,6 +18,7 @@ test("wide compare assigns every layer explicitly and isolates housing from acce
     accessSurface: true,
     housingAreas: true,
     housingCandidates: true,
+    selection: true,
   });
   const [access, intelligence] = getWideSplitMapMasks(registry);
 
@@ -29,6 +30,8 @@ test("wide compare assigns every layer explicitly and isolates housing from acce
   expect(intelligence.layers[COMPARISON_LAYER_IDS.housingAreas]).toBe(true);
   expect(access.layers[COMPARISON_LAYER_IDS.housingCandidates]).toBe(false);
   expect(intelligence.layers[COMPARISON_LAYER_IDS.housingCandidates]).toBe(true);
+  expect(access.layers[COMPARISON_LAYER_IDS.selection]).toBe(true);
+  expect(intelligence.layers[COMPARISON_LAYER_IDS.selection]).toBe(true);
   expect(access.layers["mapgap-relocation-candidates"]).toBe(true);
   expect(intelligence.layers["mapgap-relocation-candidates"]).toBe(true);
 });

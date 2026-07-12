@@ -9,7 +9,7 @@
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:contract && npm run test:smoke && npm run test:security",
-    "test:contract": "playwright test -c playwright.config.ts tests/project-contract.spec.ts tests/project-to-datasets.spec.ts tests/comparison-config.spec.ts",
+    "test:contract": "playwright test -c playwright.config.ts tests/project-contract.spec.ts tests/project-to-datasets.spec.ts tests/analysis-to-datasets.spec.ts tests/comparison-config.spec.ts tests/comparison-runtime.spec.ts tests/scale.spec.ts",
     "test:smoke": "playwright test -c playwright.config.ts tests/v3-alpha.spec.ts",
     "test:security": "playwright test -c playwright.config.ts tests/security.spec.ts",
     "test:scale": "playwright test -c playwright.config.ts tests/scale.spec.ts",

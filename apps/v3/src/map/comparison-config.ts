@@ -1,31 +1,37 @@
-import type {MapGapProjectV1} from "@mapgap/project-contract";
+import {
+  MAPGAP_ANALYSIS_DATASET_IDS,
+  type MapGapProjectV1,
+} from "@mapgap/project-contract";
 import {getStoryLayers, getStoryMapConfig, type StoryId} from "./story-config";
 
 /**
  * Stable dataset identifiers for the additive analysis bundle. These remain
  * outside mapgap-project/v1: the portable project is decision truth while the
  * analysis bundle is replaceable presentation context.
- *
- * TODO: replace this narrow local registry with the exported identifiers from
- * MapGapAnalysisBundleV1 once that contract lands in @mapgap/project-contract.
  */
 export const ANALYSIS_BUNDLE_DATASET_IDS = {
-  accessSurface: "mapgap-analysis-access-surface-v1",
-  housingAreas: "mapgap-analysis-housing-areas-v1",
-  housingCandidates: "mapgap-analysis-housing-candidates-v1",
+  accessSurface: MAPGAP_ANALYSIS_DATASET_IDS.accessSurface,
+  housingAreas: MAPGAP_ANALYSIS_DATASET_IDS.housingAreas,
+  housingCandidates: MAPGAP_ANALYSIS_DATASET_IDS.housingCandidates,
+} as const;
+
+/** App-owned presentation state; never persisted into either portable contract. */
+export const COMPARISON_PRESENTATION_DATASET_IDS = {
+  selection: "mapgap-presentation-selection-v1",
 } as const;
 
 export const COMPARISON_LAYER_IDS = {
   accessSurface: "mapgap-analysis-access-surface",
   housingAreas: "mapgap-analysis-housing-areas",
   housingCandidates: "mapgap-analysis-housing-candidates",
+  selection: "mapgap-presentation-selection",
 } as const;
 
 export type ComparisonPaneRole = "access" | "intelligence";
 export type ComparisonViewMode = "compare" | ComparisonPaneRole;
 
 export type AnalysisLayerAvailability = Partial<
-  Record<keyof typeof ANALYSIS_BUNDLE_DATASET_IDS, boolean>
+  Record<keyof typeof ANALYSIS_BUNDLE_DATASET_IDS | "selection", boolean>
 >;
 
 export type ComparisonLayerRegistration = {
@@ -33,7 +39,7 @@ export type ComparisonLayerRegistration = {
   dataId: string;
   label: string;
   paneRoles: readonly ComparisonPaneRole[];
-  source: "portable-project" | "analysis-bundle";
+  source: "portable-project" | "analysis-bundle" | "presentation";
 };
 
 export type SplitMapMask = {
@@ -44,7 +50,7 @@ export type SplitMapMask = {
 type AnalysisLayerDefinition = {
   id: string;
   dataId: string;
-  availabilityKey: keyof typeof ANALYSIS_BUNDLE_DATASET_IDS;
+  availabilityKey: keyof typeof ANALYSIS_BUNDLE_DATASET_IDS | "selection";
   label: string;
   paneRoles: readonly ComparisonPaneRole[];
   color: [number, number, number];
@@ -55,6 +61,7 @@ type AnalysisLayerDefinition = {
   colorField: {name: string; type: "string"};
   colorRange: string[];
   tooltipFields: string[];
+  source?: "analysis-bundle" | "presentation";
 };
 
 const ANALYSIS_LAYERS: readonly AnalysisLayerDefinition[] = [
@@ -98,6 +105,21 @@ const ANALYSIS_LAYERS: readonly AnalysisLayerDefinition[] = [
     colorField: {name: "affordabilityBand", type: "string"},
     colorRange: ["#047857", "#f59e0b", "#be123c", "#64748b"],
     tooltipFields: ["name", "units", "monthlyRent", "affordabilityBand", "sourceVintage"],
+  },
+  {
+    id: COMPARISON_LAYER_IDS.selection,
+    dataId: COMPARISON_PRESENTATION_DATASET_IDS.selection,
+    availabilityKey: "selection",
+    label: "Shared selection",
+    paneRoles: ["access", "intelligence"],
+    color: [215, 255, 111],
+    strokeColor: [13, 40, 49],
+    opacity: 0.18,
+    radius: 24,
+    colorField: {name: "selectionKind", type: "string"},
+    colorRange: ["#d7ff6f"],
+    tooltipFields: ["label", "selectionKind"],
+    source: "presentation",
   },
 ];
 
@@ -146,7 +168,7 @@ export function getComparisonLayerRegistry(
       dataId: layer.dataId,
       label: layer.label,
       paneRoles: layer.paneRoles,
-      source: "analysis-bundle" as const,
+      source: layer.source ?? "analysis-bundle" as const,
     }));
 
   return [...storyRegistrations, ...analysisRegistrations];

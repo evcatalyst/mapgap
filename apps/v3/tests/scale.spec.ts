@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { getRelocationProjectFixture } from "@mapgap/project-contract/fixtures";
 import { projectToDatasets } from "../src/adapters/project-to-datasets";
-import { selectScaleStrategy } from "../src/scale";
+import {
+  estimateComparisonRuntimeBudget,
+  qualifyComparisonViewport,
+  selectScaleStrategy,
+} from "../src/scale";
 
 test("direct fixture projection handles the 10k qualification tier without changing scale policy", () => {
   const project = getRelocationProjectFixture();
@@ -27,4 +31,46 @@ test("regional and national scale tiers refuse million-feature GeoJSON hydration
   expect(selectScaleStrategy(1_000_000).kind).toBe("arrow-or-query");
   expect(selectScaleStrategy(1_000_001).kind).toBe("tiled");
   expect(() => selectScaleStrategy(-1)).toThrow("featureCount");
+});
+
+test("polygon complexity and bytes can promote a small feature count out of GeoJSON", () => {
+  expect(selectScaleStrategy({
+    featureCount: 120,
+    byteCount: 28 * 1024 * 1024,
+    coordinateCount: 2_400_000,
+  }).kind).toBe("arrow-or-query");
+  expect(selectScaleStrategy({
+    featureCount: 120,
+    byteCount: 280 * 1024 * 1024,
+    coordinateCount: 13_000_000,
+  }).kind).toBe("tiled");
+});
+
+test("dual mode is container and memory qualified for iPad/desktop, not user-agent guessed", () => {
+  expect(qualifyComparisonViewport({
+    width: 1180,
+    height: 744,
+    devicePixelRatio: 2,
+  })).toMatchObject({mode: "dual", reason: "qualified", paneWidth: 590});
+  expect(qualifyComparisonViewport({
+    width: 820,
+    height: 1080,
+    devicePixelRatio: 2,
+  })).toMatchObject({mode: "single", reason: "pane-width", paneWidth: 410});
+  expect(qualifyComparisonViewport({
+    width: 1440,
+    height: 1200,
+    devicePixelRatio: 3,
+  })).toMatchObject({mode: "single", reason: "framebuffer-budget"});
+});
+
+test("comparison runtime budget exposes a tile cap and conservative resident-memory estimate", () => {
+  const budget = estimateComparisonRuntimeBudget([
+    {featureCount: 1_200, byteCount: 2_000_000, coordinateCount: 18_000},
+    {featureCount: 240, byteCount: 600_000, coordinateCount: 8_000},
+  ], {width: 1180, height: 744, devicePixelRatio: 2});
+
+  expect(budget.maximumInitialTileRequests).toBe(96);
+  expect(budget.estimatedResidentBytes).toBeGreaterThan(7_800_000);
+  expect(budget.qualified).toBe(true);
 });

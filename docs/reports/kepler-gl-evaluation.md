@@ -3,7 +3,7 @@
 **Decision date:** 2026-07-11  
 **MapGap baseline:** `1d5e584` plus the current uncommitted Phase 1 workspace  
 **Upstream evaluated:** stable `v3.2.6`, preview `v3.3.0-alpha.1`  
-**Implementation status:** V3.0 is published as a fixture-only public prerelease under `apps/v3`  
+**Implementation status:** V3.2 comparison workspace is implemented on `codex/v3-comparison-workspace`; the currently published site remains the prior fixture-only prerelease until this branch is reviewed and deployed
 **Decision:** go for the dependency-isolated, fixture-only public alpha backed by a narrow public fork prerelease; V2 continues independently; permanent fork ownership and production promotion remain open
 
 > **Version note:** MapGap V3 is MapGap's product generation. It is independent of Kepler.gl's own `3.x` release numbering; V3 must select the safest supported Kepler release available when implementation begins.
@@ -26,6 +26,70 @@ the public MapGap fork prerelease: React 19, zero audit findings, strict deploye
 CSP, and passing live smoke/security checks. Its JavaScript plus Parquet WASM
 currently totals about 5.07 MB gzip, still above the 3 MB production target, so
 the published site remains a fixture-only prerelease rather than production.
+
+## V3.2 comparison implementation — 2026-07-12
+
+The side-by-side concept is now implemented as one native Kepler workbench, not
+as a report column beside a token map and not as Leaflet next to Kepler.
+
+- Wide containers render two Kepler/MapLibre canvases: **Access heat** on the
+  left and **Location intelligence** on the right. Viewports and zoom are
+  linked, while every layer has an explicit positive/negative pane mask.
+- Civic comparison uses the tuned V2-to-V3 access-surface shape on the left and
+  a bounded two-tract ACS 2024 housing extract joined to TIGER 2023 geometry on
+  the right. Housing measures are context and never alter the routed score.
+- Relocation uses its own Jersey City access bundle plus candidates and nearby
+  places. It cannot accidentally display Albany housing.
+- iPad portrait and phone use one persistent Kepler canvas with an
+  Access/Intelligence switch. Rotation reconstructs the dual masks without
+  losing camera, story, selected feature, or evidence-drawer state.
+- Kepler click state is normalized into a MapGap-owned selection, and an
+  app-owned selection overlay is present in both pane masks. The shared bottom
+  drawer combines routed, capacity, candidate, and housing facts with text
+  equivalents for every color encoding.
+- Source failure is isolated. A housing projection failure removes only the
+  housing layer and shows an intelligence-side explanation; access remains
+  interactive.
+
+The new `MapGapAnalysisBundleV1` is a sibling to, not a mutation of,
+`mapgap-project/v1`. It carries field units and missing-value meaning,
+provenance, source vintage and license, transformations, checksums,
+sensitivity, byte/feature/coordinate budgets, joins, and representations for
+inline GeoJSON/records, Arrow-query, MVT, and PMTiles. Commercial listing and
+parcel datasets fail closed until licensing, server-brokered authentication,
+retention, and provenance gates are all explicit.
+
+### Implemented use stories and evidence
+
+| Story | Implemented outcome | Verification |
+| --- | --- | --- |
+| Civic access + housing | Routed bands and capacity stay left; ACS/TIGER housing burden stays right; one tract selection explains both contexts | Browser paint, dual container, pane-mask, selection, and lineage tests |
+| Relocation | Jersey City routed surface compares with candidates/POIs and excludes Albany housing | Story-switch and analysis-fixture isolation tests |
+| iPad meeting | Portrait is one canvas; landscape restores two maps and the selected tract | Runtime transition and browser rotation tests |
+| Source outage | Housing can fail without taking down access or the portable project | Localized failure browser test |
+| Scale-out | Complexity, bytes, and framebuffer pressure can promote GeoJSON to Arrow/query or tiles and dual canvas to single canvas | Five scale-policy tests plus tile-traffic cap |
+
+Current branch verification is: 11 analysis-contract tests, 22 V3
+contract/adapter/runtime tests, four browser comparison journeys, two browser
+security checks, five scale tests, strict TypeScript, V2 isolation, fork
+evidence, strict deployment boundary, and zero production audit findings. The
+production gate remains intentionally closed on the existing bundle-size,
+duplicate-initialization, and SBOM/license-review blockers.
+
+### Key benefit and wow-factor assessment
+
+The strongest capability is not “more map layers.” It is the immediate visual
+argument: the same Albany extent can show a broad routed-access surface beside
+tracts with different rent burden, while a single selected facility or tract
+is explained below both maps. That makes the difference between reach,
+capacity, and contextual need legible in one glance without turning any one of
+them into a hidden composite score.
+
+The next high-value sources are public, bounded, and decision-relevant:
+transit frequency/reliability, healthcare access, workforce commute flows,
+flood/heat exposure, and zoning or public parcel context. Licensed live
+listings and commercial parcel feeds stay deferred until the new governance
+contract can be backed by real permissions and server-side credential handling.
 
 ## V2/V3 product boundary
 

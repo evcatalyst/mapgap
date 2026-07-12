@@ -16,13 +16,20 @@ npm --prefix apps/v3 run build
 npm --prefix apps/v3 run test
 ```
 
-The two fixture-driven presets are deliberately read-only:
+The two fixture-driven presets are deliberately read-only and now share one
+responsive comparison workbench:
 
-- **Relocation** shows why a nearby candidate can fail a routed commute while a
-  lower-proximity candidate passes.
-- **Civic capacity** renders the 24-capacity computer lab and 48-capacity
-  library, normalized utilization, routed reach, and an explicitly labeled
-  deterministic underserved-capacity proxy.
+- **Relocation** places its Jersey City routed surface on the Access side and
+  candidates/nearby places on the Intelligence side.
+- **Civic + housing** places the V2-compatible routed access surface on the left
+  and a bounded ACS 2024/TIGER 2023 housing materialization on the right, while
+  retaining the 24-capacity computer lab, 48-capacity library, and transparent
+  underserved-capacity proxy.
+
+Wide containers use Kepler's native synchronized dual-map mode. iPad portrait
+and phone use one persistent canvas with an Access/Intelligence switch. Both
+modes share the selected feature and bottom evidence drawer. Context sources
+never modify MapGap's routed score.
 
 The preview uses the real OpenFreeMap Liberty vector basemap. It provides
 streets, water, land use, and place labels without an API key. Runtime map
@@ -31,10 +38,11 @@ keeps the required OpenMapTiles/OpenStreetMap attribution visible. OpenFreeMap
 is a public, as-is service with no SLA; a production decision must pin or
 self-host an approved basemap and define an availability/rollback policy.
 
-The responsive shell is map-first: the map owns more than 65% of the desktop
-width and appears in the first mobile viewport. Browser acceptance waits for
-real vector tiles, checks fitted scenario coordinates and canvas sizing, and
-captures both presets at 1440×960 and 390×844.
+The responsive shell is map-first. Browser acceptance waits for real vector
+tiles, proves two equal map containers and converged cameras on wide viewports,
+proves one persistent canvas under the 480-pixel-per-pane threshold, preserves
+selection through rotation, caps initial dual-map tile traffic, and verifies a
+localized intelligence-source failure.
 
 `packages/project-contract` is the portable `mapgap-project/v1` boundary.
 `src/lib/v3ProjectAdapter.ts` is the one-way V2 adapter. Kepler Redux only owns
