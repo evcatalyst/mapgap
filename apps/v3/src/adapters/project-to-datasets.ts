@@ -1,4 +1,3 @@
-import { processGeojson } from "@kepler.gl/processors";
 import {
   MAPGAP_DATASET_IDS,
   type AreaGeometryV1,
@@ -25,14 +24,9 @@ export type MapGapDataset = {
   featureCollection: FeatureCollection;
 };
 
-export type KeplerDataset = {
-  info: { id: MapGapDatasetId; label: string };
-  data: NonNullable<ReturnType<typeof processGeojson>>;
-};
-
 /**
  * Converts a portable project to canonical presentation datasets. It only reads
- * the project and creates fresh GeoJSON; Kepler never becomes project truth.
+ * the project and creates fresh GeoJSON; the renderer never becomes project truth.
  */
 export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
   const datasets: MapGapDataset[] = [
@@ -134,19 +128,9 @@ export function projectToDatasets(project: MapGapProjectV1): MapGapDataset[] {
     }))),
   ];
 
-  // Empty GeoJSON datasets produce unhelpful Kepler layers, so the workbench
+  // Empty GeoJSON datasets produce unhelpful layers, so the workbench
   // receives only datasets with data. IDs remain stable whenever present.
   return datasets.filter((entry) => entry.featureCollection.features.length > 0);
-}
-
-export function projectToKeplerDatasets(project: MapGapProjectV1): KeplerDataset[] {
-  return projectToDatasets(project).map((entry) => {
-    const data = processGeojson(entry.featureCollection);
-    if (!data) {
-      throw new Error(`Could not process MapGap dataset ${entry.id} as GeoJSON.`);
-    }
-    return { info: { id: entry.id, label: entry.label }, data };
-  });
 }
 
 export function projectToEvidenceSummary(project: MapGapProjectV1) {

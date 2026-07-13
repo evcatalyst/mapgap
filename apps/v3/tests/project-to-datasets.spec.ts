@@ -5,7 +5,6 @@ import {
   getRelocationProjectFixture,
 } from "@mapgap/project-contract/fixtures";
 import { projectToDatasets, projectToEvidenceSummary } from "../src/adapters/project-to-datasets";
-import { getStoryMapConfig } from "../src/map/story-config";
 
 test("relocation projection preserves candidate score and routed polygon evidence", () => {
   const project = getRelocationProjectFixture();
@@ -41,12 +40,6 @@ test("civic projection keeps capacity, utilization, underserved evidence, and pr
   expect(String(underserved.featureCollection.features[0].properties.evidence)).toContain("deterministic alpha proxy");
   expect(summary).toMatchObject({ assetCount: 2, totalCapacity: 72, underservedAreaCount: 1 });
 
-  const config = getStoryMapConfig("civic", project);
-  const assetLayer = config.config.visState.layers.find((layer) => layer.id === "mapgap-civic-assets")!;
-  expect(assetLayer.visualChannels.radiusField).toEqual({name: "capacity", type: "integer"});
-  expect(assetLayer.visualChannels.radiusScale).toBe("sqrt");
-  expect(assetLayer.config.visConfig.radiusRange).toEqual([12, 26]);
-  expect(assetLayer.config.label).toContain("size = capacity");
 });
 
 test("missing decision evidence stays unknown instead of becoming a pass or zero capacity", () => {

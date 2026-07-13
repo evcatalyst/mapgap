@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./fixtures": "./src/fixtures.ts",
     "./analysis": "./src/analysis.ts",
-    "./analysis-fixtures": "./src/analysis-fixtures.ts"
+    "./analysis-fixtures": "./src/analysis-fixtures.ts",
+    "./intelligence": "./src/intelligence.ts",
+    "./intelligence-fixtures": "./src/intelligence-fixtures.ts"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*.test.ts"

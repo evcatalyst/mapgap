@@ -3,6 +3,16 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[[headers]]
+  for = "/v2"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://mapgap-v3-preview.netlify.app"
+
+[[headers]]
+  for = "/v2/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://mapgap-v3-preview.netlify.app"
+
 [[redirects]]
   from = "/api/health"
   to = "/.netlify/functions/health"

@@ -9,8 +9,8 @@ const disposition = JSON.parse(
   await readFile(resolve(appRoot, "security/audit-disposition.json"), "utf8"),
 );
 
-if (disposition.status !== "public-prerelease") {
-  throw new Error("The V3 audit policy expects the public-prerelease status.");
+if (disposition.status !== "internal-alpha") {
+  throw new Error("The V3 audit policy expects the internal-alpha status.");
 }
 if (!disposition.owner || !disposition.reviewBy || !Array.isArray(disposition.constraints)) {
   throw new Error("The V3 audit disposition must name an owner, review date, and constraints.");
@@ -64,5 +64,5 @@ if (unfamiliarHigh.length) {
 }
 
 console.log(
-  `V3 public-prerelease audit verified: ${counts.high} high, ${counts.moderate} moderate, ${counts.critical} critical.`,
+  `V3 internal-alpha audit verified: ${counts.high} high, ${counts.moderate} moderate, ${counts.critical} critical.`,
 );

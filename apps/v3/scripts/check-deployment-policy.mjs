@@ -11,19 +11,14 @@ const [manifestText, v2Netlify, v3Netlify] = await Promise.all([
   readFile(resolve(appRoot, "netlify.toml"), "utf8"),
 ]);
 const manifest = JSON.parse(manifestText);
-const keplerPackages = [
-  "@kepler.gl/actions",
-  "@kepler.gl/components",
-  "@kepler.gl/processors",
-  "@kepler.gl/reducers",
-];
-const forkRelease =
-  "https://github.com/evcatalyst/kepler.gl/releases/download/mapgap-v3.0.0-alpha.1/";
-
-for (const packageName of keplerPackages) {
-  if (!manifest.dependencies?.[packageName]?.startsWith(forkRelease)) {
-    throw new Error(`${packageName} must pin the immutable public MapGap fork prerelease.`);
+for (const packageName of Object.keys(manifest.dependencies || {})) {
+  if (packageName.startsWith("@kepler.gl/") || packageName.startsWith("@hubble.gl/") || ["redux", "react-redux", "styled-components"].includes(packageName)) {
+    throw new Error(`${packageName} is prohibited from the purpose-built V3 runtime.`);
   }
+}
+if (manifest.dependencies?.["maplibre-gl"] !== "5.24.0") throw new Error("MapLibre must remain pinned to 5.24.0.");
+for (const packageName of ["@deck.gl/core", "@deck.gl/layers", "@deck.gl/aggregation-layers", "@deck.gl/mapbox"]) {
+  if (manifest.dependencies?.[packageName] !== "9.3.6") throw new Error(`${packageName} must remain pinned to 9.3.6.`);
 }
 if (/from\s*=\s*"\/v3(?:\/|"|\*)/i.test(v2Netlify)) {
   throw new Error("The V2 Netlify site must not route or publish the V3 alpha.");
@@ -43,5 +38,20 @@ for (const directive of ["connect-src", "img-src"]) {
 if (!/publish\s*=\s*"dist"/.test(v3Netlify)) {
   throw new Error("The V3 site must retain its own build output.");
 }
+const frameSrc = csp.split(";").map((part) => part.trim()).find((part) => part.startsWith("frame-src "));
+if (frameSrc !== "frame-src https://mapgap-access.netlify.app") {
+  throw new Error("frame-src must allow only the exact deployed V2 origin.");
+}
+const v2HeaderBlocks = v2Netlify.split(/(?=\[\[headers\]\])/g);
+for (const route of ["/v2", "/v2/*"]) {
+  const block = v2HeaderBlocks.find((candidate) => {
+    const configuredPath = candidate.match(/\bfor\s*=\s*"([^"]+)"/)?.[1];
+    return configuredPath === route;
+  });
+  const value = block?.match(/Content-Security-Policy\s*=\s*"([^"]+)"/)?.[1];
+  if (value !== "frame-ancestors 'self' https://mapgap-v3-preview.netlify.app") {
+    throw new Error(`${route} must allow framing only by itself and the exact deployed V3 origin.`);
+  }
+}
 
-console.log("V3 boundary policy verified: immutable fork release, separate site config, no V2 /v3 route, strict CSP with one approved basemap origin.");
+console.log("V3 boundary policy verified: direct renderer pins, no generic-workbench runtime, separate site config, and exact two-sided CSP origins.");

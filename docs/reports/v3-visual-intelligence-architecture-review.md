@@ -2,7 +2,8 @@
 
 **Decision date:** 2026-07-12
 
-**Decision status:** recommended architecture reset
+**Decision status:** accepted; V3.2R implemented in an internal-alpha branch and
+under release verification
 
 **Product boundary:** current MapGap V2 on the left; MapGap-owned visual intelligence on the right
 
@@ -27,12 +28,29 @@ V2 remains the primary interaction and routed-evidence authority. Intelligence
 adds contextual evidence and alternate visual encodings; it does not replace V2,
 change a routed score, or turn density into a travel-time claim.
 
-The recommendation is to preserve V2 at its deployed route boundary and rebuild
-the right pane directly with MapLibre GL JS and selected deck.gl packages. Use
-Kepler as a catalog of useful interaction patterns: layer management, encoding
-choices, filtering, legends, tooltips, linked selection, time, and saved views.
-Do not make Kepler packages, Redux state, its UI framework, or the MapGap Kepler
-fork prerequisites for the V3 product.
+That reset is now implemented in the working V3 branch: V2 stays at its deployed
+route boundary and the right pane uses MapLibre GL JS with selected deck.gl
+packages. Kepler remains a catalog of useful interaction patterns—layer
+management, encoding choices, filtering, legends, tooltips, linked selection,
+time, and saved views. Kepler packages, Redux state, its UI framework, and the
+MapGap Kepler fork are prohibited as V3 runtime or release prerequisites.
+
+## Implementation status
+
+The corrected branch implements the product boundary and the bounded core of the
+Intelligence alpha. It has not replaced the public Kepler research release and is
+not approved for partner data or production.
+
+| Capability | Current status |
+| --- | --- |
+| Actual V2 left | Implemented as a titled, sandboxed frame of the independently deployed `/v2` product; V2 is not reconstructed or imported into the V3 bundle |
+| One-way context | Implemented with exact origin/window checks, a versioned schema, monotonic revisions, field allowlists, 384 KiB message ceiling, and bounded POI/isochrone geometry |
+| Direct Intelligence map | Implemented as one MapLibre GL JS 5.24.0 WebGL canvas with deck.gl 9.3.6 interleaving |
+| Portable view state | Implemented as strict `mapgap-intelligence-view/v1` sources, layers, encodings, filters, legends, selection, viewport, link, workspace, and time state |
+| Bounded workbench | Implemented for civic and relocation fixtures: three overlays, ordering, visibility, opacity, numeric filtering, compatible mark switching, legend, provenance, picking, and source-local failure |
+| Responsive surfaces | Implemented as a qualified wide split and a narrow full-surface MapGap/Intelligence switch, retaining the V2 frame session and mounting only the active heavyweight map |
+| Release evidence | Typecheck, build, contract, bridge, browser, security, and scale-policy suites exist; final cross-browser/accessibility/device and live corrected-deployment verification remain open |
+| Scale-out and persistence | Policy/contract only for 100k query and 1M+ tiled tiers; adapters, benchmarks, saved/shareable views, table/export, identity, and operations remain roadmap work |
 
 ## What “V2 on the left” means
 
@@ -71,20 +89,19 @@ workbench with three levels:
 3. **Workspace** — the decision scenario, viewport, active layers, selection,
    time, linked-view preference, evidence layout, and shareable view state.
 
-Initial visual marks:
+Visual-mark roadmap and implementation:
 
-| Mark | MapGap use | Renderer |
+| Mark | MapGap use | Current status |
 | --- | --- | --- |
-| Symbol / proportional symbol | POIs, facilities, candidates, capacity | deck `ScatterplotLayer`, `IconLayer`, `TextLayer` |
-| Cluster | dense places and facilities at regional zoom | MapLibre clustering or pre-aggregated cells |
-| Density heat | concentration, never routed reach | deck `HeatmapLayer` |
-| Hex / grid | dynamic aggregation of point measures | deck `HexagonLayer` / `GridLayer` |
-| Stable H3 cell | cross-source comparable spatial bins | precomputed H3 + `H3HexagonLayer` |
-| Choropleth | ACS/HUD/civic area measures | deck `GeoJsonLayer`; MVT/PMTiles at scale |
-| Extrusion | optional capacity or magnitude emphasis | deck polygon/column elevation; disabled by default on mobile |
-| Route / isochrone | authoritative computed path or travel-time polygon | deck `PathLayer` / `GeoJsonLayer` |
-| Time / trip | service windows or movement with a scenario-relative clock | deck `TripsLayer`; MapGap owns timeline state |
-| Raster / vector tile | regional or national contextual sources | MapLibre raster/vector source or deck `MVTLayer` |
+| Symbol / proportional symbol | POIs, facilities, candidates, capacity | Implemented for point sources with deck `ScatterplotLayer` |
+| Density heat | concentration, never routed reach | Implemented for eligible point sources with deck `HeatmapLayer` |
+| Hex / grid | dynamic aggregation of point measures | Implemented for eligible point sources with deck `HexagonLayer` / `GridLayer` |
+| Stable H3 cell | cross-source comparable spatial bins | Implemented with `h3-js` aggregation plus deck `PolygonLayer` |
+| Choropleth | ACS/HUD/civic area measures | Implemented for bounded polygon GeoJSON with deck `GeoJsonLayer` |
+| Route / isochrone | authoritative computed path or travel-time polygon | Gated `PathLayer` / `GeoJsonLayer` factories exist; route/isochrone semantics must be present and validated before activation |
+| Time / trip | service windows or movement with a scenario-relative clock | Portable time contract and gated path-based factory exist; finished timeline interaction remains alpha work |
+| Cluster / extrusion | regional density and optional magnitude emphasis | Contracted/planned, not an initial runtime option |
+| Raster / vector tile | regional or national contextual sources | Contracted/planned for the scale phase; no initial tiled source adapter |
 
 The first release must let an analyst activate at least three overlays, reorder
 them, change opacity, filter, inspect provenance, and switch one eligible source
@@ -114,14 +131,21 @@ maplibre-gl
 @deck.gl/core
 @deck.gl/layers
 @deck.gl/aggregation-layers
-@deck.gl/geo-layers
 @deck.gl/mapbox
-@deck.gl/extensions
+h3-js
 ```
 
 Import subpackages and layer modules selectively. Do not add the umbrella
 `deck.gl` package, Kepler packages, Redux, styled-components, Hubble, or a chart
 library to the baseline runtime.
+
+The implemented alpha intentionally avoids `@deck.gl/geo-layers`: its package
+barrel requires the unrelated mesh-layer peer. It also omits
+`@deck.gl/extensions` because the bounded direct tier applies transparent
+MapGap-owned filters before rendering and does not use a deck extension. Stable
+H3 cells use `h3-js` plus deck's core `PolygonLayer`; governed path/time data use
+app-owned `PathLayer` factories. MapLibre will own MVT/PMTiles sources when tiled
+data is introduced.
 
 MapLibre should remain the root canvas, with deck attached through
 `MapboxOverlay({interleaved: true})`. That uses one WebGL2 context on the right,
@@ -132,23 +156,20 @@ Web-Mercator workbench.
 
 ## Measured bundle evidence
 
-The existing V3 build at `ad33d12` produced:
+The superseded Kepler build at `ad33d12` produced 12.34 MB raw / 3.34 MB gzip of
+primary JavaScript plus 5.49 MB raw / 1.83 MB gzip of Parquet WASM, before the
+remaining assets. That remains useful research evidence, not the target bundle.
 
-- primary Kepler JavaScript: **12.34 MB raw / 3.34 MB gzip**;
-- Parquet WASM: **5.49 MB raw / 1.83 MB gzip**;
-- additional JavaScript and CSS beyond those primary artifacts.
+The corrected Vite build now compiles the React shell, MapLibre GL JS 5.24.0,
+selected deck.gl 9.3.6 packages, H3 support, context bridge, and bounded
+workbench into about **2.3 MB raw / 0.65 MB gzip JavaScript** plus about **13 KB
+gzip CSS**. It has no Kepler, Parquet, DuckDB, Redux, or Hubble runtime and stays
+well below the 3 MB gzip application ceiling.
 
-A disposable Vite 8 renderer spike imported MapLibre plus points, GeoJSON, heat,
-hex, contour, H3, MVT, and trips from the direct deck stack. It produced one
-**1.85 MB raw / 519 KB gzip** JavaScript asset. The spike used the already
-installed MapLibre 4.7.1 transitive package, no React shell, no production CSS,
-and no source loaders, so it is not an apples-to-apples production forecast. It
-does prove that direct composition removes most of the generic-workbench payload
-and leaves meaningful room under the existing 3 MB gzip V3 application ceiling.
-
-CI should measure the actual fresh implementation with MapLibre 5.24.x, exact
-deck 9.3.x packages, the V3 shell, workers, styles, and optional chunks. No bundle
-claim becomes a gate result until that build exists.
+That is an internal-alpha build result, not a permanent waiver. CI must continue
+measuring all initial chunks, workers, WASM, and optional features. The scale
+phase must keep query/tile adapters and optional charts separately budgeted and
+lazy rather than spending the current headroom on a generic workbench.
 
 ## V2-to-Intelligence bridge
 
@@ -158,16 +179,18 @@ proven.
 
 ```ts
 type MapGapV2ContextV1 = {
-  type: "mapgap.v2.context/v1";
+  schema: "mapgap.v2.context/v1";
   revision: number;
-  bbox: [west: number, south: number, east: number, north: number];
-  category?: string;
-  query?: string;
-  activeExtensions: string[];
-  selectedPointId?: string;
-  points: ServicePoint[];
-  isochrones: IsochroneFeature[];
-  heatmapMode: "off" | "walk" | "drive";
+  context: {
+    bbox: [west: number, south: number, east: number, north: number];
+    category: string | null;
+    query?: string;
+    activeExtensions: string[];
+    selectedPointId: string | null;
+    servicePoints: ServicePoint[];
+    isochrones: IsochroneFeature[];
+    heatmapMode: "off" | "walk" | "drive";
+  };
 };
 ```
 
@@ -182,13 +205,13 @@ Bridge requirements:
 - isolate bridge parsing from both Leaflet and deck renderer state;
 - keep source failures and WebGL recovery on the right from reloading the frame.
 
-Live headers were checked on 2026-07-12. The V2 response currently has neither
-`X-Frame-Options` nor a CSP `frame-ancestors` directive, so it is technically
-frameable. The V3 response has `child-src 'self' blob:` and no `frame-src`, so it
-currently blocks the cross-origin V2 frame. The host must add the exact V2 origin
-to `frame-src`. Before production, V2 should add a restrictive
-`frame-ancestors 'self' <exact-v3-origin>` policy rather than remaining frameable
-by arbitrary sites.
+The repository deployment policies now declare both sides of the relationship:
+V3 `frame-src` permits only `https://mapgap-access.netlify.app`, and V2's `/v2`
+and `/v2/*` responses declare `frame-ancestors 'self'
+https://mapgap-v3-preview.netlify.app`. The boundary script machine-checks those
+exact origins. The currently deployed public pair may predate this corrected
+branch, so live headers and the new V2 bridge must be verified together before
+the direct-stack preview is published.
 
 Use a descriptive frame title, minimum sandbox permissions, and an explicit
 feature policy. The present separate origins are useful isolation. If both apps
@@ -239,10 +262,10 @@ do not mutate persisted state.
 
 | Container | Behavior |
 | --- | --- |
-| Wide desktop, normally ≥1180 px | Resizable 50/50 or 55/45 split; actual V2 left, Intelligence right; left minimum about 520 px, right minimum 480 px |
+| Wide desktop, normally ≥1180 px | Fixed adaptive split in the alpha; actual V2 left, Intelligence right; left minimum 520 px, right minimum 480 px |
 | Qualified iPad landscape | Compact split only when both pane minima and memory/frame-time gates pass; Intelligence controls collapse into its own drawer |
 | iPad portrait | Full-canvas `MapGap / Intelligence` switch, default MapGap; only the active heavyweight surface is mounted |
-| Phone | V2 remains default; Intelligence is an explicit full-screen drill-in with Map, Chart, and Table modes and a clear return action |
+| Phone | V2 remains default; Intelligence is an explicit full-screen map workbench with a clear MapGap/Intelligence switch; Chart and Table modes remain roadmap work |
 
 V2 owns its existing bottom drawer. Intelligence owns controls inside the right
 surface. Never stack two authoring drawers over one map. Camera linking is an
@@ -285,8 +308,9 @@ The initial approved context sources should be bounded and decision-led:
 
 The user searches groceries, libraries, or dog parks in V2 and enables Walk.
 Intelligence follows the search extent and overlays housing burden, vehicle
-availability, or transit frequency. One tract source can switch between
-choropleth, proportional symbols, and a table without another network request.
+availability, or transit frequency. The bounded alpha renders eligible tract
+sources as choropleths and exposes their legend, provenance, and picked facts;
+an accessible table equivalent remains release work.
 
 ### Relocation
 
@@ -315,56 +339,51 @@ and freshness status.
 
 ## Acceptance evidence
 
-The reset is not complete until all of the following are demonstrated:
+The implementation now separates completed alpha evidence from release gates:
 
-- the unchanged standalone V2 screenshot, accessibility, search, routing, share,
-  history, rotation, and live suites still pass;
-- the left pane loads the current V2 release, not fixtures or a reconstruction;
-- V2 context reaches Intelligence within 200 ms after its debounce without a
-  camera feedback loop;
-- wrong-origin, wrong-source, malformed, oversized, stale, and future-version
-  bridge messages are rejected;
-- three simultaneous overlays can be reordered, filtered, restyled for opacity,
-  inspected for provenance, and represented in text/table form;
-- one eligible dataset changes among three visual marks without refetching;
-- right-side source or WebGL failure never reloads or corrupts V2;
-- the parent share URL restores both V2 context and Intelligence view state;
-- wide, iPad landscape, iPad portrait, phone, keyboard, screen-reader, reduced
-  motion, contrast, focus, and 44 px touch-target journeys pass;
-- benchmark tiers cover 10k direct, 100k binary/query, and 1M+ tiled data;
-- target interaction is at least 45 FPS on qualified desktop and 30 FPS on the
-  qualified iPad, with no context loss during a 30-minute mixed-layer session;
-- the production application remains under the 3 MB gzip ceiling, with optional
-  workers, charts, and advanced layers lazy-loaded and separately budgeted.
+| Evidence | Status |
+| --- | --- |
+| Standalone V2 remains independently buildable/testable, carries no V3 renderer dependency, and stays inside its artifact budget | Implemented and covered by root CI guards |
+| Left pane is the current V2 route, not fixture/reconstruction | Implemented in the host; corrected public pair still needs live verification |
+| Bounded, debounced, one-way context; rejection of wrong origin/source/schema, malformed, oversized, stale, and future messages | Implemented with publisher and host tests |
+| Three overlays; ordering, visibility, opacity, numeric filtering, provenance, picking, and at least three compatible point marks without refetch | Implemented for bounded civic/relocation data |
+| Source/basemap failure does not reload or mutate V2 | Implemented in browser journeys; WebGL context-loss/restoration qualification remains open |
+| Qualified wide split and narrow full-surface switching | Implemented; full iPad/phone, assistive-technology, reduced-motion, contrast, focus, and 44 px touch-target evidence remains open |
+| Portable view contract | Implemented and strict; parent URL restoration, persistence, accessible table/text equivalents, and evidence export remain open |
+| Scale policy and one right-side WebGL context | Implemented as policy/tests; 100k binary/query and 1M+ tiled adapters, device FPS, and 30-minute stability remain open |
+| Under 3 MB gzip application ceiling | Current direct-stack build passes; optional workers/charts/advanced layers must stay separately budgeted |
 
 ## Transition from the current spike
 
-1. Preserve draft PR 18 and `codex/v3-comparison-workspace` as a **Kepler
-   comparison spike**; do not merge it as the product architecture.
-2. Land this product-boundary decision and renderer-neutral Intelligence view
-   contract before adding more Kepler-specific behavior.
-3. Build a fresh V3 host with the actual deployed V2 frame left and a static,
-   clearly labeled Intelligence shell right.
-4. Add the sanitized one-way bridge and prove all existing standalone V2 tests
-   remain unchanged.
-5. Add one direct MapLibre canvas and a bounded ACS/TIGER choropleth.
-6. Add the source/layer registry, visibility/order/opacity, compatible mark
-   switching, filters, legend, tooltip, provenance, and linked selection.
-7. Add civic, relocation, and source-outage journeys before expanding sources.
-8. Add workers/binary data and MVT/PMTiles only after measured threshold tests.
-9. Add curated charts lazily only when the map/table evidence is insufficient.
-10. Publish the corrected preview, then archive or relabel the current public
-    Kepler alpha so it cannot be mistaken for the V3 direction.
+1. **Preserved:** draft PR 18 and `codex/v3-comparison-workspace` remain the
+   Kepler comparison spike rather than the product merge target.
+2. **Implemented:** the product-boundary decision and renderer-neutral
+   `mapgap-intelligence-view/v1` contract.
+3. **Implemented:** a fresh host with the actual deployed V2 frame left and a
+   direct MapLibre/deck Intelligence surface right.
+4. **Implemented:** sanitized one-way publisher/host bridge, exact-origin frame
+   policies, standalone V2 regression coverage, and source isolation.
+5. **Implemented:** bounded civic/relocation sources, choropleth and point
+   marks, source/layer registry, visibility/order/opacity, filters, legend,
+   provenance, picking, and source-outage journeys.
+6. **Verify before publishing:** complete runtime hardening, accessibility and
+   device evidence, live V2/V3 headers and bridge, corrected release labeling,
+   and a rollback rehearsal without changing the existing research release.
+7. **Then scale:** add workers/binary query and MVT/PMTiles only after measured
+   threshold tests; add curated charts only when map/table evidence is
+   insufficient.
 
 ## Roadmap decision
 
 - `V3.0` contracts and dependency isolation remain valid foundations.
 - The current `V3.1/V3.2` Kepler applications are research evidence, not the
   target product.
-- `V3.2R` resets the boundary: exact V2 left, Intelligence shell right, secure
-  bridge, direct renderer, and responsive mode switching.
-- `V3.3` delivers the Intelligence alpha: real bounded sources, multiple marks,
-  layer controls, linked evidence, failure isolation, and exports.
+- `V3.2R` is implemented in the corrected branch: exact V2 left, Intelligence
+  right, secure bridge, direct renderer, and responsive mode switching.
+- `V3.3` is in progress: bounded sources, multiple marks, layer controls,
+  provenance, selection, and failure isolation are implemented; accessible
+  table/text equivalents, export, persistence, and completed route/time
+  interaction remain release work.
 - `V3.4` qualifies scale and partner beta: binary/query/tile sources, saved
   workspaces, permission boundaries, device telemetry, and analyst validation.
 - `V3.5` is supported production only after accessibility, operations, identity,

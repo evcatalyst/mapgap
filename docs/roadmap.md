@@ -156,13 +156,15 @@ linked evidence without changing V2 results or turning the public product into a
 generic GIS editor. See the
 [V3 Visual-Intelligence Architecture Review](reports/v3-visual-intelligence-architecture-review.md).
 
-Status: architecture reset recommended; implementation has not started. `V3.0`
-contract and isolation work remains valid. The deployed fixture-only Kepler
-prerelease and draft `codex/v3-comparison-workspace` implementation are retained
-as research spikes, not as the merge target or supported V3 direction. They
-reconstruct both panes inside Kepler and therefore do not satisfy the
-actual-V2-left product boundary.
-No V3 build is approved for partner data or production.
+Status: architecture reset accepted and implemented as an internal-alpha branch;
+release verification is in progress. `V3.2R` now hosts the actual V2 route beside
+a direct MapLibre/deck.gl Intelligence surface, with a bounded one-way bridge and
+responsive surface switching. The core `V3.3` layer workbench is implemented for
+the civic and relocation fixtures, but export, persisted/shareable workspaces,
+large-data adapters, and full device/accessibility qualification remain open.
+The currently published fixture-only Kepler prerelease and draft PR 18 remain
+superseded research spikes; the corrected direct-stack build has not replaced
+that public preview. No V3 build is approved for partner data or production.
 
 Architecture:
 
@@ -201,15 +203,17 @@ Milestones:
   policy, ACS/TIGER fixture, pane masks, shared selection, source isolation, and
   browser/security tests. Salvage its contracts, fixtures, scale rules, and
   lessons; do not merge its dual-Kepler UI or fork dependency as V3.
-- `V3.2R - Product boundary reset`: host the current deployed V2 experience on
-  the left; build the static Intelligence shell and direct MapLibre/deck canvas
-  on the right; add a sanitized one-way V2 context bridge, responsive full-mode
-  switching, exact-origin frame policy, source isolation, and a
-  `mapgap-intelligence-view/v1` contract.
-- `V3.3 - Intelligence alpha`: add real bounded sources, source/layer catalog,
-  order/visibility/opacity, compatible mark switching, filters, legends,
-  tooltips, provenance, linked selection, table/text equivalents, evidence
-  export, and the relocation/civic/source-outage journeys.
+- `V3.2R - Product boundary reset` — **implemented; release verification in
+  progress**: actual deployed V2 route on the left, direct MapLibre/deck canvas
+  on the right, sanitized one-way context bridge, responsive full-surface
+  switching, exact-origin frame policy, source isolation, and validated
+  `mapgap-intelligence-view/v1` state.
+- `V3.3 - Intelligence alpha` — **in progress**: bounded civic and relocation
+  sources, source/layer catalog, order/visibility/opacity, compatible point-mark
+  switching, numeric filters, legends, picking, provenance, selection, and
+  source-outage recovery are implemented. Table/text equivalents, evidence
+  export, saved/shareable workspaces, completed route/time interaction, and the
+  full accessibility/device matrix remain release work.
 - `V3.4 - Scale and partner beta`: qualify 10k direct, 100k binary/query, and
   1M+ tiled tiers; introduce workers, Arrow/query, MVT/PMTiles, saved/shareable
   workspaces, permission boundaries, browser telemetry, and bounded analyst
@@ -222,10 +226,35 @@ Milestones:
   the public fork only while generic fixes are upstreamable and an owner accepts
   its sync, release, security, and stop-condition budget.
 
+Current implementation evidence:
+
+- The V3 manifest pins MapLibre GL JS 5.24.0 and selected deck.gl 9.3.6
+  packages, rejects Kepler/Hubble/Redux runtime dependencies, and stays isolated
+  from V2's dependency graph and deployable artifact.
+- The wide host uses the exact cross-origin `/v2` application rather than a
+  reconstructed access map. Narrow viewports keep the V2 frame alive while only
+  mounting the active heavyweight map surface.
+- The bridge validates exact origin and frame window, schema, field allowlists,
+  record and geometry limits, a 384 KiB envelope, and increasing revisions. V2
+  publishes only sanitized viewport, query/category, POI, routed-isochrone,
+  selection, extension, and heat-mode context.
+- The right surface owns one MapLibre WebGL canvas with interleaved deck layers.
+  The bounded alpha supports choropleth, proportional symbol, density heat, hex,
+  grid, and stable H3 views; governed isochrone/path/trip factories fail closed
+  when their required geometry and semantics are absent.
+- The local direct-stack build is well below the 3 MB gzip application ceiling.
+  That initial result is not scale, device, accessibility, or production
+  qualification.
+- Required V2/V3 CI now tests the direct product boundary and portable contracts;
+  the old Kepler-fork evidence check is an optional research workflow and cannot
+  block a V2 or direct-stack V3 release.
+
 Exit criteria:
 
-- V2 continues to build, audit, test, and deploy unchanged, with no MapLibre,
-  deck.gl, Kepler, Intelligence, or frame-host dependency or artifact growth.
+- V2 continues to build, audit, test, and deploy on its own release line, with no
+  MapLibre, deck.gl, Kepler, or Intelligence runtime and within its artifact
+  budget. Its only V3 integration is the bounded publisher plus an exact-origin
+  frame policy.
 - The wide left pane loads the current V2 release and preserves its recognizable
   map, search, access heat, results, evidence, history, share, and failure modes.
 - The origin-checked bridge rejects malformed, oversized, stale, wrong-source,

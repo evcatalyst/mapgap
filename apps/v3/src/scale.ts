@@ -1,7 +1,7 @@
 /**
  * Presentation policy for the V3 scale tiers. It prevents a caller from
  * accidentally hydrating a national dataset as a million-feature GeoJSON
- * object in React/Redux state.
+ * object in application state.
  */
 export type ScaleStrategy =
   | { kind: "direct-geojson"; maximumFeatures: 50_000 }
@@ -10,7 +10,7 @@ export type ScaleStrategy =
 
 export type DatasetScaleEnvelope = {
   featureCount: number;
-  /** Serialized bytes before Kepler/deck.gl creates column and GPU buffers. */
+  /** Serialized bytes before deck.gl creates column and GPU buffers. */
   byteCount?: number;
   /** Total coordinate pairs; complex polygons can be expensive with few features. */
   coordinateCount?: number;
@@ -28,6 +28,19 @@ export const SCALE_LIMITS = {
     coordinates: 12_000_000,
   },
 } as const;
+
+/** Counts GeoJSON position pairs without treating unrelated numeric arrays as geometry. */
+export function countGeoJsonCoordinatePairs(value: unknown, insideCoordinates = false): number {
+  if (!Array.isArray(value)) {
+    if (!value || typeof value !== "object") return 0;
+    return Object.entries(value).reduce(
+      (total, [key, entry]) => total + countGeoJsonCoordinatePairs(entry, insideCoordinates || key === "coordinates"),
+      0,
+    );
+  }
+  if (insideCoordinates && value.length >= 2 && typeof value[0] === "number" && typeof value[1] === "number") return 1;
+  return value.reduce((total, entry) => total + countGeoJsonCoordinatePairs(entry, insideCoordinates), 0);
+}
 
 export function selectScaleStrategy(input: number | DatasetScaleEnvelope): ScaleStrategy {
   const envelope = typeof input === "number" ? {featureCount: input} : input;
@@ -63,16 +76,20 @@ export type ComparisonViewportInput = {
   width: number;
   height: number;
   devicePixelRatio?: number;
-  /** Two deck canvases plus color, picking, and depth buffers. */
+  /** The one Intelligence WebGL canvas, including color, picking, and depth buffers. */
   framebufferBudgetBytes?: number;
 };
 
 export const COMPARISON_VIEWPORT_LIMITS = {
-  minimumPaneWidth: 480,
+  minimumV2PaneWidth: 520,
+  minimumIntelligencePaneWidth: 480,
+  splitGap: 3,
   defaultFramebufferBudgetBytes: 192 * 1024 * 1024,
   buffersPerCanvas: 4,
   bytesPerPixel: 4,
 } as const;
+
+export const MAXIMUM_INTELLIGENCE_TILE_CACHE_SIZE = 56;
 
 /**
  * Container-driven dual-canvas gate used for desktop and iPad landscape. It
@@ -90,13 +107,19 @@ export function qualifyComparisonViewport({
   validateCount(devicePixelRatio, "devicePixelRatio");
   validateCount(framebufferBudgetBytes, "framebufferBudgetBytes");
 
-  const paneWidth = width / 2;
+  const paneWidth = (width - COMPARISON_VIEWPORT_LIMITS.splitGap) / 2;
+  const splitCandidate = width >= (
+    COMPARISON_VIEWPORT_LIMITS.minimumV2PaneWidth
+    + COMPARISON_VIEWPORT_LIMITS.minimumIntelligencePaneWidth
+    + COMPARISON_VIEWPORT_LIMITS.splitGap
+  );
+  const renderWidth = splitCandidate ? paneWidth : width;
   const estimatedFramebufferBytes = Math.ceil(
-    width * height * devicePixelRatio ** 2 *
+    renderWidth * height * Math.min(devicePixelRatio, 2) ** 2 *
     COMPARISON_VIEWPORT_LIMITS.bytesPerPixel *
     COMPARISON_VIEWPORT_LIMITS.buffersPerCanvas,
   );
-  if (paneWidth < COMPARISON_VIEWPORT_LIMITS.minimumPaneWidth) {
+  if (!splitCandidate) {
     return {mode: "single", paneWidth, estimatedFramebufferBytes, reason: "pane-width"};
   }
   if (estimatedFramebufferBytes > framebufferBudgetBytes) {
@@ -113,8 +136,8 @@ export type ComparisonRuntimeBudget = {
 
 /**
  * Conservative qualification estimate: parsed GeoJSON commonly expands in
- * memory, while two synchronized basemaps should still share the browser HTTP
- * cache. Runtime smoke tests measure the real request count against this cap.
+ * memory. Only Intelligence owns WebGL and basemap tile traffic; V2 remains in
+ * its independent Leaflet frame. Runtime smoke tests measure both surfaces.
  */
 export function estimateComparisonRuntimeBudget(
   datasets: readonly DatasetScaleEnvelope[],
@@ -127,7 +150,7 @@ export function estimateComparisonRuntimeBudget(
     return total + (dataset.byteCount ?? dataset.featureCount * 320) * 3;
   }, 0);
   const estimatedResidentBytes = parsedDatasetBytes + view.estimatedFramebufferBytes;
-  const maximumInitialTileRequests = view.mode === "dual" ? 96 : 56;
+  const maximumInitialTileRequests = MAXIMUM_INTELLIGENCE_TILE_CACHE_SIZE;
   return {
     estimatedResidentBytes,
     maximumInitialTileRequests,

@@ -14,7 +14,15 @@
 **Implementation status:** the V3.2 comparison workspace was published as a fixture-only public alpha on 2026-07-12 and is now retained as a superseded research spike
 **Historical decision:** go for the dependency-isolated, fixture-only public alpha backed by a narrow public fork prerelease; this decision is superseded by the review linked above
 
-> **Version note:** MapGap V3 is MapGap's product generation. It is independent of Kepler.gl's own `3.x` release numbering; V3 must select the safest supported Kepler release available when implementation begins.
+**Current disposition:** the corrected V3.2R branch now uses the actual MapGap V2
+route on the left and a MapGap-owned MapLibre 5.24.0/deck.gl 9.3.6 workbench on
+the right. It installs and bundles no Kepler package. The public preview may
+continue to show this historical spike until the corrected branch passes its
+release gates; fork health is not a required V2 or direct-stack V3 CI check.
+
+> **Version note:** MapGap V3 is MapGap's product generation. It is independent
+> of Kepler.gl's own `3.x` release numbering. Kepler versions in this report
+> describe the archived research baseline, not a current V3 dependency choice.
 
 ## Executive decision
 

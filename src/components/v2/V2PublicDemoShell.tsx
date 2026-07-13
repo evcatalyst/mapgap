@@ -35,6 +35,12 @@ import {
   SERVICE_POINT_CATEGORY_LABELS,
   SERVICE_POINT_SOURCE_LABELS,
 } from "../../lib/servicePoints";
+import {
+  createV2ContextPublisher,
+  resolveV2BridgeTargetOrigin,
+  type V2ContextInput,
+  type V2ContextPublisher,
+} from "../../lib/v2ContextBridge";
 import { fetchServicePoints } from "../../services/servicePointsClient";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
 import type {
@@ -75,6 +81,9 @@ const HEATMAP_POINT_LIMIT = 20;
 const WALK_REACH_OPTIONS = [5, 10, 20] as const;
 const DEFAULT_WALK_REACH_MINUTES = 10;
 const BOOSTED_SERVICE_POINTS_KEY = "mapgap-v2-boosted-service-points";
+const V3_BRIDGE_TARGET_ORIGIN = resolveV2BridgeTargetOrigin(
+  import.meta.env.VITE_MAPGAP_V3_HOST_ORIGIN,
+);
 
 type WalkReachMinutes = (typeof WALK_REACH_OPTIONS)[number];
 
@@ -208,8 +217,11 @@ export function V2PublicDemoShell() {
   const previousDrawerModeRef = useRef(drawerMode);
   const fabRef = useRef<HTMLButtonElement>(null);
   const restoredUrlSearchRef = useRef(false);
+  const contextPublisherRef = useRef<V2ContextPublisher | null>(null);
+  const latestContextRef = useRef<V2ContextInput | null>(null);
 
   const mapBounds = useMapIsoStore((state) => state.mapBounds);
+  const isochrones = useMapIsoStore((state) => state.isochrones);
   const status = useMapIsoStore((state) => state.status);
   const settings = useMapIsoStore((state) => state.settings);
   const clearIsochrones = useMapIsoStore((state) => state.clearIsochrones);
@@ -229,6 +241,58 @@ export function V2PublicDemoShell() {
     pointsState.points.length > 0 &&
     Boolean(selectedCategory) &&
     boundsChangedEnough(activeBounds, lastSearch?.bounds);
+
+  latestContextRef.current = {
+    bounds: activeBounds,
+    category: selectedCategory,
+    query: selectedQuery,
+    activeExtensions: pointsState.activeExtensions,
+    selectedPointId,
+    servicePoints: pointsState.points,
+    isochrones,
+    heatmapMode,
+  };
+
+  useEffect(() => {
+    const publisher = createV2ContextPublisher({ targetOrigin: V3_BRIDGE_TARGET_ORIGIN });
+    contextPublisherRef.current = publisher;
+    const announceReady = () => publisher.ready();
+    if (document.readyState === "complete") {
+      announceReady();
+    } else {
+      window.addEventListener("load", announceReady, { once: true });
+    }
+
+    return () => {
+      window.removeEventListener("load", announceReady);
+      publisher.destroy();
+      contextPublisherRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const context = latestContextRef.current;
+
+    if (context) {
+      contextPublisherRef.current?.publish(context, "viewport");
+    }
+  }, [mapBounds]);
+
+  useEffect(() => {
+    const context = latestContextRef.current;
+
+    if (context) {
+      contextPublisherRef.current?.publish(context, "immediate");
+    }
+  }, [
+    heatmapMode,
+    isochrones,
+    pointsState.activeExtensions,
+    pointsState.points,
+    selectedCategory,
+    selectedPointId,
+    selectedQuery,
+  ]);
 
   useEffect(() => {
     drawerModeRef.current = drawerMode;

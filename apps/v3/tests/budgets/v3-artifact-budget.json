@@ -1,0 +1,11 @@
+{
+  "measured": {
+    "raw": 2392881,
+    "gzip": 655096
+  },
+  "maximum": {
+    "raw": 12582912,
+    "gzip": 3145728
+  },
+  "policy": "The independently deployable V3 browser runtime, including generated workers and WASM, must remain below 3 MiB gzip. Public source maps are disabled separately."
+}

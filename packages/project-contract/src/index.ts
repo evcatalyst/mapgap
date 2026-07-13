@@ -8,6 +8,8 @@
 
 export * from "./analysis";
 export * from "./analysis-fixtures";
+export * from "./intelligence";
+export * from "./intelligence-fixtures";
 
 export const PROJECT_SCHEMA_VERSION = "mapgap-project/v1" as const;
 export const V3_VIEW_ATTACHMENT_VERSION = "mapgap-v3-view/v1" as const;
@@ -216,8 +218,10 @@ export type UnderservedAreaV1 = {
 
 /**
  * A presentation attachment is optional and cannot alter core MapGap project
- * data. Config stays as JSON because it is renderer-specific (Kepler today),
- * while the data ids keep it safely addressable and portable.
+ * data. The legacy `config` field remains JSON for backward compatibility with
+ * research spikes. New Intelligence presentation state belongs in the validated
+ * `mapgap-intelligence-view/v1` contract, referenced independently of project
+ * truth; dataset ids keep this attachment safely addressable and portable.
  */
 export type V3ViewAttachmentV1 = {
   version: typeof V3_VIEW_ATTACHMENT_VERSION;

@@ -90,8 +90,8 @@ for (const id of ['KSEC-001', 'KSEC-002', 'KSEC-003', 'KSEC-004', 'KSEC-005', 'K
 }
 
 requireValue(
-  security.includes('public prerelease — production promotion blocked'),
-  'The public prerelease must not silently open the V3 production-promotion gate.'
+  security.includes('internal alpha — publication and production promotion blocked'),
+  'The corrected direct-stack alpha must not silently open publication or production promotion.'
 );
 
 if (failures.length) {

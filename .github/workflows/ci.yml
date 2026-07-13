@@ -42,9 +42,6 @@ jobs:
       - name: Verify V2 artifact budget
         run: npm run check:v2-budget
 
-      - name: Verify Kepler security fork evidence
-        run: npm run check:kepler-fork
-
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
@@ -70,7 +67,7 @@ jobs:
           if-no-files-found: ignore
 
   v3-alpha:
-    name: V3 internal alpha checks
+    name: V3 direct-stack internal alpha checks
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -87,6 +84,9 @@ jobs:
         working-directory: apps/v3
         run: npm ci
 
+      - name: Test renderer-neutral project contracts
+        run: npm --prefix packages/project-contract test
+
       - name: Typecheck V3
         working-directory: apps/v3
         run: npm run typecheck
@@ -98,6 +98,10 @@ jobs:
       - name: Verify V3 deployment boundary
         working-directory: apps/v3
         run: npm run check:boundary
+
+      - name: Verify V3 artifact budget
+        working-directory: apps/v3
+        run: npm run check:budget
 
       - name: Verify V3 internal-alpha audit disposition
         working-directory: apps/v3

@@ -1,17 +1,4 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
-import {
-  addDataToMap,
-  layerToggleVisibility,
-  mapStyleChange,
-  removeDataset,
-  replaceDataInMap,
-  setMapSplitMode,
-  toggleLayerForMap,
-  toggleSplitMapViewport,
-  wrapTo,
-} from "@kepler.gl/actions";
-import {KeplerGl} from "@kepler.gl/components";
-import {useDispatch, useSelector} from "react-redux";
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
   MAPGAP_ANALYSIS_DATASET_IDS,
   MAPGAP_DATASET_IDS,
@@ -20,595 +7,622 @@ import {
   type MapGapAnalysisBundleV1,
   type MapGapProjectV1,
 } from "@mapgap/project-contract";
-import {
-  getCivicCapacityProjectFixture,
-  getRelocationProjectFixture,
-} from "@mapgap/project-contract/fixtures";
 import {getComparisonAnalysisBundleFixture} from "@mapgap/project-contract/analysis-fixtures";
+import {getCivicCapacityProjectFixture, getRelocationProjectFixture} from "@mapgap/project-contract/fixtures";
+import type {IntelligenceFieldV1, IntelligenceGeometryTypeV1} from "@mapgap/project-contract/intelligence";
 import {
-  analysisBundleToKeplerDatasets,
+  assertIntelligenceViewV1,
+  type MapGapIntelligenceViewV1,
+} from "@mapgap/project-contract/intelligence";
+import {
+  analysisBundleToRenderDatasets,
   findAnalysisFeature,
-  getAnalysisLayerAvailability,
   getInitialSelection,
-  selectionToKeplerDataset,
-  sharedSelectionToCanonical,
   type CanonicalSelection,
 } from "./adapters/analysis-to-datasets";
-import {projectToEvidenceSummary, projectToKeplerDatasets} from "./adapters/project-to-datasets";
+import {projectToDatasets, projectToEvidenceSummary} from "./adapters/project-to-datasets";
 import {
-  COMPARISON_PRESENTATION_DATASET_IDS,
-  getComparisonLayerRegistry,
-  getComparisonMapConfig,
-  getWideSplitMapMasks,
-  type ComparisonPaneRole,
-} from "./map/comparison-config";
+  V2_READY_SCHEMA,
+  validateV2ContextEvent,
+  type V2Context,
+} from "./bridge/v2-context";
 import {
-  extractSharedSelection,
-  planComparisonTransition,
-  type ComparisonLayout,
-  type KeplerComparisonState,
-} from "./map/comparison-runtime";
-import {TOKEN_FREE_MAP_STYLE_ID, TOKEN_FREE_MAP_STYLES} from "./map/token-free-style";
-import {qualifyComparisonViewport} from "./scale";
-import {v3Store, type V3ReduxState} from "./store";
+  isPickableMark,
+  type IntelligenceLayerState,
+  type IntelligenceSource,
+  type RenderCollection,
+} from "./map/intelligence-layers";
+import {IntelligenceMap} from "./map/IntelligenceMap";
+import {IntelligenceErrorBoundary} from "./runtime/IntelligenceErrorBoundary";
+import {makePortableIntelligenceView} from "./intelligence-view";
+import {countGeoJsonCoordinatePairs, qualifyComparisonViewport, selectScaleStrategy} from "./scale";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
-const KEPLER_ID = "mapgap-v3-comparison";
-const V2_HANDOFF_URL = import.meta.env.VITE_MAPGAP_V2_URL || "https://mapgap-access.netlify.app/v2";
-const BASEMAP_LOAD_TIMEOUT_MS = 12_000;
+type PresetId = "civic" | "relocation";
+type FocusSurface = "mapgap" | "intelligence";
 
-const HIDDEN_MAP_CONTROLS = Object.fromEntries(
-  ["visibleLayers", "mapLegend", "toggle3d", "splitMap", "mapDraw", "mapLocale", "effect", "annotation", "aiAssistant"].map(
-    (control) => [control, {show: false, active: false, disableClose: false, activeMapIndex: 0}],
-  ),
-);
-const MAPGAP_UI_STATE = {mapControls: HIDDEN_MAP_CONTROLS};
+const V2_URL = safeV2Url(import.meta.env.VITE_MAPGAP_V2_URL || "https://mapgap-access.netlify.app/v2");
+const V2_ORIGIN = new URL(V2_URL).origin;
 
-type PresetId = "relocation" | "civic";
-type DrawerSnap = "peek" | "open";
-
-type PresetDefinition = {
-  label: string;
-  shortLabel: string;
-  question: string;
-  detail: string;
-  getProject: () => MapGapProjectV1;
+const PRESETS: Record<PresetId, {label: string; question: string; getProject: () => MapGapProjectV1}> = {
+  civic: {label: "Civic + housing", question: "Where do capacity and housing pressure compound access gaps?", getProject: getCivicCapacityProjectFixture},
+  relocation: {label: "Relocation", question: "Which location works when daily life and context are considered together?", getProject: getRelocationProjectFixture},
 };
 
-const PRESETS: Record<PresetId, PresetDefinition> = {
-  civic: {
-    label: "Civic access + housing context",
-    shortLabel: "Civic + housing",
-    question: "Where does routed access collide with housing pressure?",
-    detail: "Compare the tuned routed surface with bounded ACS housing indicators joined to TIGER tract geometry.",
-    getProject: getCivicCapacityProjectFixture,
-  },
-  relocation: {
-    label: "Relocation decision comparison",
-    shortLabel: "Relocation",
-    question: "Which candidate still works after the route network is applied?",
-    detail: "Compare routed constraints with candidate, anchor, and nearby-place intelligence from the portable project.",
-    getProject: getRelocationProjectFixture,
-  },
+type WorkspaceSession = {
+  presetId: PresetId;
+  project: MapGapProjectV1;
+  analysisBundle: MapGapAnalysisBundleV1;
+  sources: IntelligenceSource[];
+  layerMetadata: IntelligenceLayerState[];
+  view: MapGapIntelligenceViewV1;
+  selection: CanonicalSelection;
 };
 
-export default function ComparisonWorkbench() {
-  const dispatch = useDispatch();
-  const [presetId, setPresetId] = useState<PresetId>(() => getInitialPreset());
-  const [focusPane, setFocusPane] = useState<ComparisonPaneRole>("access");
-  const [drawerSnap, setDrawerSnap] = useState<DrawerSnap>("peek");
-  const [keplerReady, setKeplerReady] = useState(false);
-  const [basemapReady, setBasemapReady] = useState(false);
-  const [basemapError, setBasemapError] = useState(false);
-  const [webglLost, setWebglLost] = useState(false);
-  const [loadedRevision, setLoadedRevision] = useState(0);
-  const [mapCameras, setMapCameras] = useState<Record<number, CameraState>>({});
-  const [mapContainerRef, mapSize] = useElementSize();
-  const webglSupported = supportsWebGl();
-
-  const preset = PRESETS[presetId];
-  const project = useMemo(() => preset.getProject(), [preset]);
-  const analysisBundle = useMemo<MapGapAnalysisBundleV1>(
-    () => getComparisonAnalysisBundleFixture(presetId),
-    [presetId],
-  );
-  const simulateHousingFailure = presetId === "civic" && typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("failSource") === "housing";
-  const analysisProjection = useMemo(() => {
-    if (simulateHousingFailure) return {datasets: [], error: new Error("Simulated housing source outage")};
-    try {
-      return {datasets: analysisBundleToKeplerDatasets(analysisBundle), error: null as Error | null};
-    } catch (error) {
-      return {datasets: [], error: error instanceof Error ? error : new Error("Analysis source failed")};
-    }
-  }, [analysisBundle, simulateHousingFailure]);
-  const availability = useMemo(() => !analysisProjection.error
-    ? getAnalysisLayerAvailability(analysisBundle)
-    : {selection: true}, [analysisBundle, analysisProjection.error]);
-  const hasHousing = availability.housingAreas === true;
-  const initialSelection = useMemo(() => getInitialSelection(project), [project]);
-  const [selection, setSelection] = useState<CanonicalSelection>(initialSelection);
-  const projectDatasets = useMemo(() => projectToKeplerDatasets(project), [project]);
-  const evidence = useMemo(() => projectToEvidenceSummary(project), [project]);
-  const usage = useMemo(() => analysisBundleUsage(analysisBundle), [analysisBundle]);
-  const qualification = useMemo(() => qualifyComparisonViewport({
-    width: mapSize.width,
-    height: mapSize.height,
-    devicePixelRatio: typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 2),
-  }), [mapSize.height, mapSize.width]);
-  const isDual = qualification.mode === "dual";
-  const targetLayout: ComparisonLayout = isDual ? "dual" : focusPane === "access" ? "single-access" : "single-intelligence";
-  const targetLayoutRef = useRef(targetLayout);
-  targetLayoutRef.current = targetLayout;
-
-  const clicked = useSelector((state: V3ReduxState) =>
-    (state.keplerGl as Record<string, {visState?: {clicked?: unknown}} | undefined>)[KEPLER_ID]?.visState?.clicked,
-  );
-
-  const mapRefs = useRef(new Map<number, MapLibreLike>());
-  const listenerCleanups = useRef(new Map<number, () => void>());
-  const readyMapIndexes = useRef(new Set<number>());
-  const basemapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mapStyleSelected = useRef(false);
-  const previousDualMode = useRef(isDual);
-
-  const comparisonMasks = useMemo(() => {
-    const registry = getComparisonLayerRegistry(presetId, project, availability);
-    const [access, intelligence] = getWideSplitMapMasks(registry);
-    return {access: access.layers, intelligence: intelligence.layers};
-  }, [availability, presetId, project]);
-
-  const applyLayout = useCallback((layout: ComparisonLayout) => {
-    const keplerInstances = v3Store.getState().keplerGl as Record<string, unknown>;
-    const instance = keplerInstances[KEPLER_ID] as KeplerComparisonState | undefined;
-    if (!instance?.visState?.layers?.length) return;
-    const intents = planComparisonTransition(instance, layout, comparisonMasks);
-    for (const intent of intents) {
-      if (intent.kind === "set-global-layer-visibility") {
-        dispatch(wrapTo(KEPLER_ID, layerToggleVisibility(intent.layerId, intent.isVisible)));
-      } else if (intent.kind === "set-map-split-mode") {
-        dispatch(wrapTo(KEPLER_ID, setMapSplitMode({mapSplitMode: intent.mapSplitMode as never})));
-      } else {
-        dispatch(wrapTo(KEPLER_ID, toggleLayerForMap(intent.mapIndex, intent.layerId)));
-      }
-    }
-    if (layout === "dual") {
-      dispatch(wrapTo(KEPLER_ID, toggleSplitMapViewport({isViewportSynced: true, isZoomLocked: true})));
-    }
-  }, [comparisonMasks, dispatch]);
-
-  const captureMapRef = useCallback((mapRef: {getMap?: () => MapLibreLike} | null, mapIndex = 0) => {
-    const previousCleanup = listenerCleanups.current.get(mapIndex);
-    if (!mapRef?.getMap) {
-      previousCleanup?.();
-      listenerCleanups.current.delete(mapIndex);
-      mapRefs.current.delete(mapIndex);
-      readyMapIndexes.current.delete(mapIndex);
-      return;
-    }
-    const map = mapRef.getMap();
-    if (mapRefs.current.get(mapIndex) === map) return;
-    previousCleanup?.();
-    mapRefs.current.set(mapIndex, map);
-    const checkReady = () => {
-      const center = map.getCenter?.();
-      const zoom = map.getZoom?.();
-      if (center && typeof zoom === "number") {
-        setMapCameras((current) => {
-          const previous = current[mapIndex];
-          if (previous?.longitude === center.lng && previous.latitude === center.lat && previous.zoom === zoom) {
-            return current;
-          }
-          return {...current, [mapIndex]: {longitude: center.lng, latitude: center.lat, zoom}};
-        });
-      }
-      const hasSources = Object.keys(map.getStyle?.()?.sources ?? {}).length > 0;
-      if (!hasSources || !map.isStyleLoaded?.() || !map.areTilesLoaded?.()) return;
-      readyMapIndexes.current.add(mapIndex);
-      const requiredIndexes = isDual ? [0, 1] : [0];
-      if (requiredIndexes.every((index) => readyMapIndexes.current.has(index))) {
-        if (basemapTimeout.current) clearTimeout(basemapTimeout.current);
-        basemapTimeout.current = null;
-        setBasemapError(false);
-        setBasemapReady(true);
-      }
-    };
-    const handleError = () => {
-      if (!map.isStyleLoaded?.()) setBasemapError(true);
-    };
-    map.on?.("idle", checkReady);
-    map.on?.("sourcedata", checkReady);
-    map.on?.("error", handleError);
-    checkReady();
-    listenerCleanups.current.set(mapIndex, () => {
-      map.off?.("idle", checkReady);
-      map.off?.("sourcedata", checkReady);
-      map.off?.("error", handleError);
-    });
-  }, [isDual]);
-
-  useEffect(() => {
-    setSelection(initialSelection);
-    setDrawerSnap("peek");
-  }, [initialSelection]);
-
-  useEffect(() => () => {
-    listenerCleanups.current.forEach((cleanup) => cleanup());
-    if (basemapTimeout.current) clearTimeout(basemapTimeout.current);
-  }, []);
-
-  useEffect(() => {
-    if (!keplerReady) return;
-    setBasemapReady(false);
-    setBasemapError(false);
-    setMapCameras({});
-    readyMapIndexes.current.clear();
-    if (basemapTimeout.current) clearTimeout(basemapTimeout.current);
-    basemapTimeout.current = setTimeout(() => setBasemapError(true), BASEMAP_LOAD_TIMEOUT_MS);
-    if (!mapStyleSelected.current) {
-      dispatch(wrapTo(KEPLER_ID, mapStyleChange(TOKEN_FREE_MAP_STYLE_ID)));
-      mapStyleSelected.current = true;
-    }
-    const removeIds = [
-      ...Object.values(MAPGAP_DATASET_IDS),
-      ...Object.values(MAPGAP_ANALYSIS_DATASET_IDS),
-      COMPARISON_PRESENTATION_DATASET_IDS.selection,
-    ];
-    removeIds.forEach((dataId) => dispatch(wrapTo(KEPLER_ID, removeDataset(dataId))));
-    const loadMode = targetLayoutRef.current === "dual"
-      ? "compare"
-      : targetLayoutRef.current === "single-access" ? "access" : "intelligence";
-    const config = getComparisonMapConfig(presetId, project, availability, loadMode);
-    dispatch(wrapTo(KEPLER_ID, addDataToMap({
-      datasets: [
-        ...projectDatasets,
-        ...analysisProjection.datasets,
-        selectionToKeplerDataset(initialSelection),
-      ],
-      options: {centerMap: true, readOnly: true, autoCreateLayers: false},
-      config: config as never,
-      info: {
-        title: preset.label,
-        description: "MapGap V3 synchronized access and location-intelligence comparison.",
-      },
-    })));
-    setLoadedRevision((value) => value + 1);
-  }, [
-    analysisProjection.datasets,
-    availability,
-    dispatch,
-    initialSelection,
-    keplerReady,
-    preset.label,
+function createWorkspaceSession(presetId: PresetId): WorkspaceSession {
+  const project = PRESETS[presetId].getProject();
+  const analysisBundle = getComparisonAnalysisBundleFixture(presetId);
+  const housingFailed = presetId === "civic"
+    && new URLSearchParams(location.search).get("failSource") === "housing";
+  const {sources, initialLayers} = createWorkspaceModel(
     presetId,
     project,
-    projectDatasets,
-  ]);
+    analysisBundle,
+    housingFailed,
+  );
+  const selection = getInitialSelection(project);
+  const view = makePortableIntelligenceView({
+    id: `mapgap-v3-${presetId}`,
+    title: PRESETS[presetId].question,
+    sources,
+    layers: initialLayers,
+    selection,
+    linkedToV2: true,
+    viewport: presetId === "civic"
+      ? {longitude: -73.778, latitude: 42.668, zoom: 11.2, bearing: 0, pitch: 0}
+      : {longitude: -74.075, latitude: 40.7255, zoom: 11.1, bearing: 0, pitch: 0},
+  });
+  return {presetId, project, analysisBundle, sources, layerMetadata: initialLayers, view, selection};
+}
+
+function resolveRuntimeLayers(
+  view: MapGapIntelligenceViewV1,
+  metadata: IntelligenceLayerState[],
+): IntelligenceLayerState[] {
+  return [...view.layers]
+    .sort((left, right) => left.order - right.order)
+    .flatMap((portable) => {
+      const source = metadata.find((entry) => entry.id === portable.id);
+      if (!source) return [];
+      const minimum = portable.filters.find((entry) => entry.operator === "gte");
+      const color = portable.encodings.color;
+      const weight = portable.encodings.weight;
+      return [{
+        ...source,
+        mark: portable.mark as IntelligenceLayerState["mark"],
+        visible: portable.visible,
+        opacity: portable.opacity,
+        colorField: color?.kind === "field" ? color.field : undefined,
+        weightField: weight?.kind === "field" ? weight.field : undefined,
+        filterField: minimum?.field,
+        filterValue: minimum && minimum.operator === "gte" && typeof minimum.value === "number"
+          ? minimum.value
+          : source.filterValue,
+        legend: {...source.legend, title: portable.legend.title},
+      }];
+    });
+}
+
+function cloneView(view: MapGapIntelligenceViewV1): MapGapIntelligenceViewV1 {
+  return JSON.parse(JSON.stringify(view)) as MapGapIntelligenceViewV1;
+}
+
+export default function ComparisonWorkbench() {
+  const [session, setSession] = useState(() => createWorkspaceSession(
+    location.hash === "#relocation" ? "relocation" : "civic",
+  ));
+  const [focus, setFocus] = useState<FocusSurface>("mapgap");
+  const [shellRef, size] = useElementSize();
+  const qualification = qualifyComparisonViewport({
+    width: size.width,
+    height: size.height,
+    devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+  });
+  const wide = qualification.mode === "dual" && size.height >= 620;
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const revisionRef = useRef(0);
+  const v2SelectedPointRef = useRef<string | null>(null);
+  const [bridgeReady, setBridgeReady] = useState(false);
+  const [v2Context, setV2Context] = useState<V2Context | null>(null);
+  const {presetId, project, analysisBundle, sources, layerMetadata, view: portableView, selection} = session;
+  const layers = useMemo(
+    () => resolveRuntimeLayers(portableView, layerMetadata),
+    [layerMetadata, portableView],
+  );
+  const activeLayerId = portableView.workspace.activeLayerId ?? layers[0]?.id ?? "";
+  const panelOpen = portableView.workspace.layerPanel === "open";
+  const cameraLinked = portableView.link?.mode !== "none";
 
   useEffect(() => {
-    if (!loadedRevision) return;
-    applyLayout(targetLayout);
-  }, [applyLayout, loadedRevision, targetLayout]);
-
-  useEffect(() => {
-    if (!loadedRevision || previousDualMode.current === isDual) return;
-    previousDualMode.current = isDual;
-    setBasemapReady(false);
-    if (!isDual && readyMapIndexes.current.has(0)) {
-      setBasemapReady(true);
-      return;
-    }
-    if (basemapTimeout.current) clearTimeout(basemapTimeout.current);
-    basemapTimeout.current = setTimeout(() => setBasemapError(true), BASEMAP_LOAD_TIMEOUT_MS);
-  }, [isDual, loadedRevision]);
-
-  useEffect(() => {
-    if (!loadedRevision) return;
-    dispatch(wrapTo(KEPLER_ID, replaceDataInMap({
-      datasetToReplaceId: COMPARISON_PRESENTATION_DATASET_IDS.selection,
-      datasetToUse: selectionToKeplerDataset(selection),
-      options: {centerMap: false, keepExistingConfig: true, autoCreateLayers: false},
-    })));
-    applyLayout(targetLayoutRef.current);
-  }, [applyLayout, dispatch, loadedRevision, selection]);
-
-  useEffect(() => {
-    const shared = extractSharedSelection({clicked});
-    if (!shared || shared.layerId?.includes("presentation-selection")) return;
-    const resolved = findAnalysisFeature(analysisBundle, shared.id);
-    setSelection((current) => resolved ?? sharedSelectionToCanonical(shared, current));
-    setDrawerSnap("open");
-  }, [analysisBundle, clicked]);
-
-  useEffect(() => {
-    const canvases = document.querySelectorAll(".map-workbench canvas");
-    const handleContextLost = (event: Event) => {
-      event.preventDefault();
-      setWebglLost(true);
+    const receive = (event: MessageEvent<unknown>) => {
+      if (event.origin === V2_ORIGIN && event.source === iframeRef.current?.contentWindow && isReadyMessage(event.data)) {
+        // A framed V2 navigation starts a fresh publisher whose revisions begin
+        // at one. Reset the previous document's epoch before accepting context.
+        revisionRef.current = 0;
+        setV2Context(null);
+        setBridgeReady(true);
+        if (v2SelectedPointRef.current) {
+          v2SelectedPointRef.current = null;
+          restoreProjectSelection();
+        }
+        return;
+      }
+      const result = validateV2ContextEvent({event, expectedOrigin: V2_ORIGIN, expectedSource: iframeRef.current?.contentWindow ?? null, lastRevision: revisionRef.current});
+      if (!result.ok) return;
+      revisionRef.current = result.value.revision;
+      setV2Context(result.value.context);
+      const selected = result.value.context.selectedPointId;
+      if (selected) {
+        const point = result.value.context.servicePoints.find((entry) => entry.id === selected);
+        if (point) {
+          v2SelectedPointRef.current = selected;
+          selectEntity({
+            id: point.id,
+            label: point.name,
+            datasetId: "mapgap-v2-live-service-points",
+            geometry: {type: "Point", coordinates: [point.location.lng, point.location.lat]},
+            properties: {id: point.id, name: point.name, category: point.category, source: point.source, address: point.address ?? null},
+          });
+        } else if (v2SelectedPointRef.current) {
+          v2SelectedPointRef.current = null;
+          restoreProjectSelection();
+        }
+      } else if (v2SelectedPointRef.current) {
+        v2SelectedPointRef.current = null;
+        restoreProjectSelection();
+      }
     };
-    canvases.forEach((canvas) => canvas.addEventListener("webglcontextlost", handleContextLost));
-    return () => canvases.forEach((canvas) => canvas.removeEventListener("webglcontextlost", handleContextLost));
-  }, [loadedRevision, isDual]);
+    window.addEventListener("message", receive);
+    return () => window.removeEventListener("message", receive);
+  }, []);
 
-  function selectPreset(nextPreset: PresetId) {
-    if (nextPreset === presetId) return;
-    setPresetId(nextPreset);
-    window.history.replaceState(null, "", `#${nextPreset}`);
+  function selectPreset(next: PresetId) {
+    if (next === presetId) return;
+    setSession((current) => {
+      const nextSession = createWorkspaceSession(next);
+      nextSession.view.link = current.view.link ? {...current.view.link} : undefined;
+      return {...nextSession, view: assertIntelligenceViewV1(nextSession.view)};
+    });
+    history.replaceState(null, "", `${location.pathname}${location.search}#${next}`);
   }
 
-  function selectEvidence(next: CanonicalSelection) {
-    setSelection(next);
-    setDrawerSnap("open");
+  function updateLayer(id: string, update: Partial<IntelligenceLayerState>) {
+    setSession((current) => {
+      const view = cloneView(current.view);
+      const layer = view.layers.find((entry) => entry.id === id);
+      const metadata = current.layerMetadata.find((entry) => entry.id === id);
+      if (!layer || !metadata) return current;
+      if (typeof update.visible === "boolean") layer.visible = update.visible;
+      if (typeof update.opacity === "number") {
+        layer.opacity = update.opacity;
+        layer.encodings.opacity = {kind: "value", value: update.opacity};
+      }
+      if (update.mark && metadata.supportedMarks.includes(update.mark)) {
+        layer.mark = update.mark;
+        layer.pickable = isPickableMark(update.mark);
+        layer.selectable = isPickableMark(update.mark);
+        if (!layer.selectable && view.activeSelection?.layerId === layer.id) {
+          delete view.activeSelection.layerId;
+        }
+      }
+      if (typeof update.filterValue === "number") {
+        const filter = layer.filters.find((entry) => entry.operator === "gte");
+        if (filter && filter.operator === "gte") filter.value = update.filterValue;
+      }
+      return {...current, view: assertIntelligenceViewV1(view)};
+    });
   }
 
-  function zoomMap(direction: "in" | "out") {
-    const options = {duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 160};
-    const map = mapRefs.current.get(0) ?? mapRefs.current.values().next().value;
-    if (direction === "in") map?.zoomIn?.(options);
-    else map?.zoomOut?.(options);
+  function moveLayer(id: string, direction: -1 | 1) {
+    setSession((current) => {
+      const view = cloneView(current.view);
+      const ordered = [...view.layers].sort((left, right) => left.order - right.order);
+      const index = ordered.findIndex((entry) => entry.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= ordered.length) return current;
+      [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+      ordered.forEach((entry, order) => { entry.order = order; });
+      view.layers = ordered;
+      return {...current, view: assertIntelligenceViewV1(view)};
+    });
   }
 
-  if (!webglSupported || webglLost) return <RecoveryScreen contextLost={webglLost} />;
+  function setActiveLayerId(id: string) {
+    updatePortableView((view) => { view.workspace.activeLayerId = id; });
+  }
+
+  function setPanelOpen(open: boolean) {
+    updatePortableView((view) => { view.workspace.layerPanel = open ? "open" : "closed"; });
+  }
+
+  function setCameraLinked(linked: boolean) {
+    updatePortableView((view) => {
+      view.link = {target: "mapgap-v2", mode: linked ? "camera" : "none", direction: "from-target"};
+    });
+  }
+
+  function setIntelligenceViewport(viewport: NonNullable<MapGapIntelligenceViewV1["viewport"]>) {
+    updatePortableView((view) => { view.viewport = viewport; });
+  }
+
+  function updatePortableView(update: (view: MapGapIntelligenceViewV1) => void) {
+    setSession((current) => {
+      const view = cloneView(current.view);
+      update(view);
+      return {...current, view: assertIntelligenceViewV1(view)};
+    });
+  }
+
+  function selectEntity(next: CanonicalSelection) {
+    setSession((current) => {
+      const view = cloneView(current.view);
+      const sourceExists = view.sources.some((source) => source.id === next.datasetId);
+      if (sourceExists) {
+        view.activeSelection = {
+          sourceId: next.datasetId,
+          entityId: next.id,
+          layerId: view.layers.find((layer) => layer.sourceId === next.datasetId)?.id,
+        };
+      } else {
+        delete view.activeSelection;
+      }
+      return {...current, selection: next, view: assertIntelligenceViewV1(view)};
+    });
+  }
+
+  function restoreProjectSelection() {
+    setSession((current) => {
+      const selection = getInitialSelection(current.project);
+      const view = cloneView(current.view);
+      const sourceExists = view.sources.some((source) => source.id === selection.datasetId);
+      if (sourceExists) {
+        view.activeSelection = {
+          sourceId: selection.datasetId,
+          entityId: selection.id,
+          layerId: view.layers.find((layer) => layer.sourceId === selection.datasetId)?.id,
+        };
+      } else {
+        delete view.activeSelection;
+      }
+      return {...current, selection, view: assertIntelligenceViewV1(view)};
+    });
+  }
+
+  function resetBridgeForFrameLoad() {
+    revisionRef.current = 0;
+    setBridgeReady(false);
+    setV2Context(null);
+    if (v2SelectedPointRef.current) {
+      v2SelectedPointRef.current = null;
+      restoreProjectSelection();
+    }
+  }
+
+  const intelligence = (
+    <IntelligenceErrorBoundary resetKey={presetId}><IntelligenceWorkbench
+      presetId={presetId}
+      question={PRESETS[presetId].question}
+      sources={sources}
+      layers={layers}
+      selection={selection}
+      activeLayerId={activeLayerId}
+      setActiveLayerId={setActiveLayerId}
+      panelOpen={panelOpen}
+      setPanelOpen={setPanelOpen}
+      cameraLinked={cameraLinked}
+      setCameraLinked={setCameraLinked}
+      linkedBbox={cameraLinked ? v2Context?.bbox ?? null : null}
+      viewport={portableView.viewport!}
+      setViewport={setIntelligenceViewport}
+      bridgeReady={bridgeReady}
+      context={v2Context}
+      onSelect={selectEntity}
+      updateLayer={updateLayer}
+      moveLayer={moveLayer}
+      project={project}
+      analysisBundle={analysisBundle}
+    /></IntelligenceErrorBoundary>
+  );
 
   return (
-    <main className={`v3-shell ${isDual ? "is-dual" : "is-single"}`}>
-      <header className="v3-header">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
-          <div><p className="eyebrow">V3 comparison alpha</p><h1>MapGap <span>Analyst</span></h1></div>
-        </div>
-        <nav className="scenario-tabs" aria-label="Comparison stories">
-          {(Object.entries(PRESETS) as Array<[PresetId, PresetDefinition]>).map(([id, option]) => (
-            <button key={id} type="button" className={presetId === id ? "selected" : ""}
-              aria-pressed={presetId === id} onClick={() => selectPreset(id)}>{option.shortLabel}</button>
-          ))}
+    <main
+      ref={shellRef}
+      className={`v3-shell ${wide ? "is-split" : "is-focus"}`}
+      data-testid="v3-shell"
+      data-intelligence-schema={portableView.schemaVersion}
+      data-intelligence-viewport={portableView.viewport ? [portableView.viewport.longitude, portableView.viewport.latitude, portableView.viewport.zoom].map((value) => value.toFixed(5)).join(",") : ""}
+    >
+      <header className="app-header">
+        <div className="brand-lockup"><span className="brand-mark" aria-hidden="true">M</span><div><span>MapGap V3</span><strong>Access × Intelligence</strong></div></div>
+        <nav aria-label="Decision story" className="scenario-tabs">
+          {(Object.keys(PRESETS) as PresetId[]).map((id) => <button key={id} type="button" aria-pressed={presetId === id} onClick={() => selectPreset(id)}>{PRESETS[id].label}</button>)}
         </nav>
-        <div className="header-actions">
-          <span className="sync-status"><i />{isDual ? "Cameras linked" : "State preserved"}</span>
-          <a className="handoff-link" href={V2_HANDOFF_URL}>Open V2 <span aria-hidden="true">↗</span></a>
-        </div>
+        <span className="alpha-badge">Direct-stack alpha</span>
       </header>
 
-      <section ref={mapContainerRef} className="map-workbench" aria-label="MapGap comparison map" data-testid="map-workbench">
-        <KeplerGl
-          id={KEPLER_ID}
-          mapboxApiAccessToken=""
-          mapStyles={TOKEN_FREE_MAP_STYLES as never}
-          mapStylesReplaceDefault
-          initialUiState={MAPGAP_UI_STATE}
-          getMapboxRef={captureMapRef as never}
-          width={mapSize.width}
-          height={mapSize.height}
-          readOnly
-          appName="MapGap V3 Comparison"
-          onKeplerGlInitialized={() => setKeplerReady(true)}
-        />
+      {!wide && <nav className="surface-switch" aria-label="Workspace surface">
+        <button type="button" aria-pressed={focus === "mapgap"} onClick={() => setFocus("mapgap")}>MapGap</button>
+        <button type="button" aria-pressed={focus === "intelligence"} onClick={() => setFocus("intelligence")}>Intelligence</button>
+      </nav>}
 
-        {!basemapReady && !basemapError && <div className="map-loading" aria-hidden="true"><span /><p>Composing both evidence maps…</p></div>}
-        {basemapError && <div className="map-error" role="alert" data-testid="basemap-error"><strong>Basemap unavailable</strong><span>The project and analysis evidence remain unchanged.</span><button type="button" onClick={() => window.location.reload()}>Retry</button></div>}
-
-        <div className="map-story-card">
-          <p className="map-question">{preset.label}</p>
-          <h2>{preset.question}</h2>
-          <p>{preset.detail}</p>
+      <section className="workspace" aria-label="MapGap V3 workspace" data-layout={wide ? "split" : `focus-${focus}`} data-testid="comparison-layout">
+        <div className={!wide && focus !== "mapgap" ? "preserved-surface is-hidden" : "preserved-surface"} aria-hidden={!wide && focus !== "mapgap"}>
+          <V2Surface iframeRef={iframeRef} bridgeReady={bridgeReady} onFrameLoad={resetBridgeForFrameLoad} />
         </div>
-
-        {isDual ? (
-          <div className="pane-chrome" aria-label="Comparison pane labels">
-            <PaneHeader role="access" eyebrow="01 · Routed evidence" title="Access heat" meta="V2 access-surface contract" />
-            <PaneHeader role="intelligence" eyebrow="02 · Context lens" title="Location intelligence" meta={hasHousing ? "ACS housing · TIGER geometry" : "Candidates · nearby places"} />
-            <span className="pane-divider" aria-hidden="true" />
-          </div>
-        ) : (
-          <nav className="focus-switcher" aria-label="Map focus">
-            <button type="button" aria-pressed={focusPane === "access"} className={focusPane === "access" ? "selected" : ""} onClick={() => setFocusPane("access")}>Access</button>
-            <button type="button" aria-pressed={focusPane === "intelligence"} className={focusPane === "intelligence" ? "selected" : ""} onClick={() => setFocusPane("intelligence")}>Intelligence</button>
-          </nav>
-        )}
-
-        {analysisProjection.error && (isDual || focusPane === "intelligence") && (
-          <div className="source-error" role="status" data-testid="housing-source-error">
-            <strong>Housing context unavailable</strong>
-            <span>Access evidence is still live; this source failed independently.</span>
-          </div>
-        )}
-
-        <div className="source-rail" aria-label="Active sources">
-          <span className="source-chip access"><i />Routed bands</span>
-          {hasHousing && !analysisProjection.error && <span className="source-chip housing"><i />Housing 2024</span>}
-          <span className="source-chip"><i />{presetId === "civic" ? "Capacity" : "Candidates"}</span>
-        </div>
-        <div className="map-navigation" aria-label="Map zoom controls">
-          <button type="button" aria-label="Zoom in" onClick={() => zoomMap("in")}>+</button>
-          <button type="button" aria-label="Zoom out" onClick={() => zoomMap("out")}>−</button>
-        </div>
-
-        <div className="comparison-legends" aria-hidden="true">
-          <div><strong>Access</strong><span className="heat-ramp" /><small>near</small><small>gap</small></div>
-          {hasHousing && <div><strong>Rent burden</strong><span className="housing-ramp" /><small>lower</small><small>high</small></div>}
-        </div>
-
-        <EvidenceDrawer
-          snap={drawerSnap}
-          setSnap={setDrawerSnap}
-          presetId={presetId}
-          project={project}
-          analysisBundle={analysisProjection.error ? null : analysisBundle}
-          selection={selection}
-          evidence={evidence}
-          usage={analysisProjection.error ? null : usage}
-          onSelect={selectEvidence}
-        />
-
-        <p className="map-attribution" data-testid="map-attribution">
-          <a href="https://openfreemap.org/" target="_blank" rel="noreferrer">OpenFreeMap</a><span>·</span>
-          <a href="https://www.openmaptiles.org/" target="_blank" rel="noreferrer">© OpenMapTiles</a><span>·</span>
-          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Data from OpenStreetMap</a>
-        </p>
-        <span className="sr-only" role="status" data-testid="kepler-mounted">{keplerReady ? "Kepler comparison workbench mounted" : "Mounting Kepler comparison workbench"}</span>
-        <span className="sr-only" role="status" data-testid="basemap-ready">{basemapReady ? `${isDual ? 2 : 1} map canvas basemap ready` : "Basemap tiles loading"}</span>
-        <span className="sr-only" data-testid="comparison-layout" data-layout={targetLayout} data-pane-width={qualification.paneWidth}>{targetLayout}</span>
-        <span className="sr-only" data-testid="camera-sync" data-camera-count={Object.keys(mapCameras).length}
-          data-camera-delta={cameraDelta(mapCameras)}>{cameraDelta(mapCameras)}</span>
+        {(wide || focus === "intelligence") && intelligence}
       </section>
+      <span className="sr-only" data-testid="surface-mount-count">{wide ? 2 : 1} heavyweight surface mounted</span>
     </main>
   );
 }
 
-function PaneHeader({role, eyebrow, title, meta}: {role: ComparisonPaneRole; eyebrow: string; title: string; meta: string}) {
-  return <section className={`pane-header ${role}`} data-testid={`${role}-pane-header`}><p>{eyebrow}</p><h3>{title}</h3><span>{meta}</span></section>;
+function V2Surface({iframeRef, bridgeReady, onFrameLoad}: {iframeRef: React.RefObject<HTMLIFrameElement | null>; bridgeReady: boolean; onFrameLoad: () => void}) {
+  return <section className="surface v2-surface" data-testid="v2-surface">
+    <header className="surface-header"><div><span>01 · Primary experience</span><h1>MapGap V2</h1></div><p>Search · Walk/Drive heat · routes · evidence</p><a href={V2_URL} target="_blank" rel="noreferrer">Open alone ↗</a></header>
+    <iframe
+      ref={iframeRef}
+      onLoad={onFrameLoad}
+      className="v2-frame"
+      src={V2_URL}
+      title="MapGap V2 access map"
+      sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-downloads"
+      allow="clipboard-write; geolocation 'none'; camera 'none'; microphone 'none'"
+      referrerPolicy="strict-origin-when-cross-origin"
+    />
+    <span className={`bridge-indicator ${bridgeReady ? "ready" : "waiting"}`} role="status"><i />{bridgeReady ? "Context bridge ready" : "V2 independent · awaiting context"}</span>
+  </section>;
 }
 
-function EvidenceDrawer({
-  snap,
-  setSnap,
-  presetId,
-  project,
-  analysisBundle,
-  selection,
-  evidence,
-  usage,
-  onSelect,
-}: {
-  snap: DrawerSnap;
-  setSnap: (snap: DrawerSnap) => void;
+function IntelligenceWorkbench(props: {
   presetId: PresetId;
-  project: MapGapProjectV1;
-  analysisBundle: MapGapAnalysisBundleV1 | null;
+  question: string;
+  sources: IntelligenceSource[];
+  layers: IntelligenceLayerState[];
   selection: CanonicalSelection;
-  evidence: ReturnType<typeof projectToEvidenceSummary>;
-  usage: ReturnType<typeof analysisBundleUsage> | null;
+  activeLayerId: string;
+  setActiveLayerId: (id: string) => void;
+  panelOpen: boolean;
+  setPanelOpen: (open: boolean) => void;
+  cameraLinked: boolean;
+  setCameraLinked: (linked: boolean) => void;
+  linkedBbox: [number, number, number, number] | null;
+  viewport: NonNullable<MapGapIntelligenceViewV1["viewport"]>;
+  setViewport: (viewport: NonNullable<MapGapIntelligenceViewV1["viewport"]>) => void;
+  bridgeReady: boolean;
+  context: V2Context | null;
   onSelect: (selection: CanonicalSelection) => void;
+  updateLayer: (id: string, update: Partial<IntelligenceLayerState>) => void;
+  moveLayer: (id: string, direction: -1 | 1) => void;
+  project: MapGapProjectV1;
+  analysisBundle: MapGapAnalysisBundleV1;
 }) {
-  const housingFeatures = analysisBundle?.datasets.find((dataset) =>
-    dataset.descriptor.id === MAPGAP_ANALYSIS_DATASET_IDS.housingAreas && dataset.descriptor.representation.kind === "inline-geojson",
-  )?.data as AnalysisFeatureCollectionV1 | undefined;
-  const selectionFacts = getSelectionFacts(selection.properties);
+  const {sources, layers, selection} = props;
+  const activeLayer = layers.find((entry) => entry.id === props.activeLayerId) ?? layers[0];
+  const activeSource = sources.find((entry) => entry.id === activeLayer?.sourceId);
+  const visibleCount = layers.filter((layer) => layer.visible && sources.find((source) => source.id === layer.sourceId)?.status === "ready").length;
+  const evidence = projectToEvidenceSummary(props.project);
+  const usage = analysisBundleUsage(props.analysisBundle);
 
-  return (
-    <aside className={`evidence-drawer ${snap}`} aria-label="Shared comparison evidence" data-testid="evidence-drawer">
-      <button className="drawer-handle" type="button" aria-expanded={snap === "open"} onClick={() => setSnap(snap === "open" ? "peek" : "open")}
-        aria-label={snap === "open" ? "Collapse evidence drawer" : "Expand evidence drawer"}><span /></button>
-      <div className="drawer-summary">
-        <div className="selection-identity"><p className="panel-kicker">Shared selection · {selection.datasetId}</p><h2>{selection.label}</h2></div>
-        <div className="fact-strip">
-          {selectionFacts.map((fact) => <div key={fact.label}><span>{fact.label}</span><strong>{fact.value}</strong></div>)}
-          <div><span>{presetId === "civic" ? "Known capacity" : "Route passes"}</span><strong>{presetId === "civic" ? evidence.totalCapacity : evidence.passedCandidateCount}</strong></div>
-        </div>
-        <button className="drawer-toggle" type="button" onClick={() => setSnap(snap === "open" ? "peek" : "open")}>{snap === "open" ? "Hide details" : "Compare evidence"}</button>
+  return <section className="surface intelligence-surface" data-testid="intelligence-surface">
+    <header className="surface-header intelligence-header">
+      <div><span>02 · Context workbench</span><h1>Location intelligence</h1></div>
+      <p>{props.question}</p>
+      <div className="intelligence-actions">
+        <button type="button" aria-pressed={props.cameraLinked && props.bridgeReady} onClick={() => props.setCameraLinked(!props.cameraLinked)}>{props.cameraLinked ? props.bridgeReady ? "Linked to V2" : "Link V2 when ready" : "Independent camera"}</button>
+        <button type="button" aria-expanded={props.panelOpen} onClick={() => props.setPanelOpen(!props.panelOpen)}>Layers {visibleCount}/{layers.length}</button>
       </div>
-      <div className="drawer-details">
-        <section>
-          <p className="section-label">Decision evidence</p>
-          <div className="evidence-choices">
-            {(presetId === "relocation" ? project.candidates : project.civic.assets).map((item) => {
-              const candidate = "label" in item;
-              const next: CanonicalSelection = {
-                id: item.id,
-                label: candidate ? item.label : item.name,
-                datasetId: candidate ? MAPGAP_DATASET_IDS.candidates : MAPGAP_DATASET_IDS.assets,
-                geometry: item.geometry,
-                properties: candidate
-                  ? {id: item.id, label: item.label, totalScore: item.score?.total, failedConstraints: item.score?.failedConstraints.map((entry) => entry.label).join(", ")}
-                  : {id: item.id, name: item.name, capacity: item.capacity, utilizationPercent: item.utilizationRate === undefined ? null : Math.round(item.utilizationRate * 100)},
-              };
-              return <button key={item.id} type="button" className={selection.id === item.id ? "selected" : ""} onClick={() => onSelect(next)}><strong>{next.label}</strong><span>{candidate ? `${item.score?.total ?? "—"}/100` : `${item.capacity ?? "—"} capacity`}</span></button>;
-            })}
-          </div>
+    </header>
+    <div className="intelligence-body">
+      <IntelligenceMap sources={sources} layers={layers} selection={selection} onSelect={props.onSelect} linkedBbox={props.linkedBbox} presetId={props.presetId} viewport={props.viewport} onViewportChange={props.setViewport} />
+
+      {props.panelOpen && <aside className="control-panel" aria-label="Intelligence controls" data-testid="intelligence-controls">
+        <section className="source-tray"><header><div><span>Source tray</span><strong>{sources.filter((source) => source.status === "ready").length} connected</strong></div><small>Failures remain isolated</small></header>
+          <div className="source-list">{sources.map((source) => <button type="button" key={source.id} className={activeSource?.id === source.id ? "active" : ""} onClick={() => {
+            const layer = layers.find((entry) => entry.sourceId === source.id);
+            if (layer) props.setActiveLayerId(layer.id);
+          }}><i className={source.status} /><span><strong>{source.label}</strong><small>{source.status === "ready" ? `${source.data?.features.length ?? 0} features` : source.error}</small></span></button>)}</div>
         </section>
-        <section>
-          <p className="section-label">Housing lens</p>
-          {housingFeatures ? <div className="evidence-choices housing">
-            {housingFeatures.features.map((feature) => {
-              const id = String(feature.properties.geoid);
-              const next = findAnalysisFeature(analysisBundle!, id)!;
-              return <button key={id} type="button" className={selection.id === id ? "selected" : ""} onClick={() => onSelect(next)}><strong>{String(feature.properties.name)}</strong><span>${String(feature.properties.medianGrossRent)} median rent · {String(feature.properties.rentBurdenPercent)}% burden</span></button>;
-            })}
-          </div> : <p className="empty-lens">No housing layer is attached to this story. Candidate and nearby-place context remain available.</p>}
+
+        <section className="layer-registry"><header><span>Layer registry</span><strong>{visibleCount} overlays visible</strong></header>
+          <ol>{layers.map((layer, index) => <li key={layer.id} className={activeLayer?.id === layer.id ? "active" : ""}>
+            <button className="layer-name" type="button" onClick={() => props.setActiveLayerId(layer.id)}><span className="order-number">{index + 1}</span><span><strong>{layer.label}</strong><small>{layer.mark}</small></span></button>
+            <div className="layer-actions">
+              <button type="button" aria-label={`Move ${layer.label} up`} disabled={index === 0} onClick={() => props.moveLayer(layer.id, -1)}>↑</button>
+              <button type="button" aria-label={`Move ${layer.label} down`} disabled={index === layers.length - 1} onClick={() => props.moveLayer(layer.id, 1)}>↓</button>
+              <label className="visibility"><input type="checkbox" checked={layer.visible} onChange={(event) => props.updateLayer(layer.id, {visible: event.target.checked})}/><span>Show</span></label>
+            </div>
+          </li>)}</ol>
         </section>
-        <section className="method-panel">
-          <p className="section-label">Lineage + scale</p>
-          <p>Access and context remain separate inputs. Housing never changes the routed score.</p>
-          <dl><div><dt>Datasets</dt><dd>{usage?.datasets ?? project.views?.v3?.datasetIds.length ?? 0}</dd></div><div><dt>Coordinates</dt><dd>{usage?.coordinates ?? "Project"}</dd></div><div><dt>Join</dt><dd>{analysisBundle?.joins[0]?.method ?? "None"}</dd></div></dl>
-          <small>{analysisBundle ? "ACS estimates include sampling error. Context is area-level, never person-level." : "Portable project evidence only."}</small>
-        </section>
-      </div>
-    </aside>
-  );
+
+        {activeLayer && activeSource && <section className="layer-editor" data-testid="layer-editor">
+          <header><span>Style + filter</span><strong>{activeLayer.label}</strong></header>
+          <label>Visualization<select value={activeLayer.mark} onChange={(event) => props.updateLayer(activeLayer.id, {mark: event.target.value as IntelligenceLayerState["mark"]})}>{activeLayer.supportedMarks.map((mark) => <option key={mark} value={mark}>{markLabel(mark)}</option>)}</select></label>
+          <label>Opacity <output>{Math.round(activeLayer.opacity * 100)}%</output><input type="range" min="0.1" max="1" step="0.05" value={activeLayer.opacity} onChange={(event) => props.updateLayer(activeLayer.id, {opacity: Number(event.target.value)})}/></label>
+          {activeLayer.filterField && <label>Minimum {fieldLabel(activeLayer.filterField)} <output>{activeLayer.filterValue}</output><input type="range" min={activeLayer.filterMin} max={activeLayer.filterMax} step="1" value={activeLayer.filterValue} onChange={(event) => props.updateLayer(activeLayer.id, {filterValue: Number(event.target.value)})}/></label>}
+          <div className="legend"><span style={{background: `linear-gradient(90deg, ${activeLayer.legend.colors.join(",")})`}}/><div><small>{activeLayer.legend.low}</small><strong>{activeLayer.legend.title}</strong><small>{activeLayer.legend.high}</small></div></div>
+        </section>}
+
+        {activeSource && <details className="provenance" open><summary>Provenance</summary><dl><div><dt>Publisher</dt><dd>{activeSource.provenance.publisher}</dd></div><div><dt>Vintage</dt><dd>{activeSource.provenance.vintage}</dd></div><div><dt>License</dt><dd>{activeSource.provenance.license}</dd></div></dl><p>{activeSource.provenance.note}</p></details>}
+      </aside>}
+
+      <aside className="selection-card" aria-label="Shared selection" data-testid="shared-selection"><span>Shared selection</span><strong>{selection.label}</strong><p>{selectionSummary(selection)}</p></aside>
+      <div className="map-status" role="status"><span>{visibleCount} overlays</span><span>{props.context ? `${props.context.heatmapMode} context · rev ${props.context.selectedPointId ? "selected" : "live"}` : props.bridgeReady ? "Waiting for V2 viewport" : "Fixture extent"}</span><span>{evidence.totalCapacity || evidence.candidateCount} decision records · {usage.datasets} analysis datasets</span></div>
+    </div>
+  </section>;
 }
 
-function getSelectionFacts(properties: Readonly<Record<string, unknown>>) {
-  const candidates = [
-    ["Access score", properties.totalScore],
-    ["Median rent", typeof properties.medianGrossRent === "number" ? `$${properties.medianGrossRent}` : undefined],
-    ["Rent burden", typeof properties.rentBurdenPercent === "number" ? `${properties.rentBurdenPercent}%` : undefined],
-    ["Capacity", properties.capacity],
-    ["Travel time", typeof properties.minutes === "number" ? `${properties.minutes} min` : undefined],
-  ] as const;
-  const facts = candidates.filter((entry) => entry[1] !== undefined && entry[1] !== null).slice(0, 2)
-    .map(([label, value]) => ({label, value: String(value)}));
-  return facts.length ? facts : [{label: "Evidence ID", value: String(properties.geoid ?? properties.id ?? "Selected")}];
+function createWorkspaceModel(presetId: PresetId, project: MapGapProjectV1, bundle: MapGapAnalysisBundleV1, housingFailed: boolean) {
+  const projectDatasets = new Map(projectToDatasets(project).map((entry) => [entry.id, entry]));
+  const analysisDatasets = new Map(analysisBundleToRenderDatasets(bundle).map((entry) => [entry.id, entry]));
+  const projectSource = (id: string, label: string, description: string, geometry: "point" | "area"): IntelligenceSource => {
+    const dataset = projectDatasets.get(id as never);
+    const first = dataset?.featureCollection.features[0]?.properties;
+    const data = (dataset?.featureCollection ?? null) as RenderCollection | null;
+    const schema = describeCollection(data, geometry);
+    const scale = qualifyInlineCollection(data);
+    return {
+      id,
+      label,
+      description,
+      geometry,
+      data: scale.ready ? data : null,
+      reference: {kind: "project-dataset", datasetId: id},
+      ...schema,
+      status: dataset && scale.ready ? "ready" : "failed",
+      error: dataset ? scale.error : "Source not present",
+      provenance: {publisher: String(first?.provenanceLabel ?? "MapGap portable project"), vintage: String(first?.provenanceUpdatedAt ?? "Project fixture"), license: "Portable project terms", note: "Decision evidence remains independent from contextual scoring."},
+    };
+  };
+  const analysisSource = (id: string, label: string, description: string): IntelligenceSource => {
+    const dataset = analysisDatasets.get(id);
+    const provenance = dataset?.provenance;
+    const firstSource = provenance?.sources[0];
+    const failed = housingFailed && id === MAPGAP_ANALYSIS_DATASET_IDS.housingAreas;
+    const data = dataset ? dataset.featureCollection as RenderCollection : null;
+    const scale = qualifyInlineCollection(data);
+    return {
+      id,
+      label,
+      description,
+      geometry: "area",
+      data: !failed && scale.ready ? data : null,
+      reference: {kind: "analysis-dataset", datasetId: id},
+      fields: dataset?.fields.map((field) => ({name: field.name, label: field.label, type: field.type, nullable: field.nullable})) ?? [],
+      geometryTypes: dataset?.geometryTypes as IntelligenceGeometryTypeV1[] ?? ["Polygon"],
+      status: failed || !dataset || !scale.ready ? "failed" : "ready",
+      error: failed ? "Housing source unavailable" : !dataset ? "Source not attached" : scale.error,
+      provenance: {publisher: firstSource?.publisher ?? "MapGap", vintage: formatVintage(firstSource?.vintage), license: firstSource?.license.name ?? "Unknown", note: provenance?.caveat ?? "Area context is not a routed-access claim."},
+    };
+  };
+
+  if (presetId === "civic") {
+    const sources = [
+      analysisSource(MAPGAP_ANALYSIS_DATASET_IDS.housingAreas, "Housing context", "ACS measures joined to TIGER tracts"),
+      projectSource(MAPGAP_DATASET_IDS.assets, "Civic capacity", "Facilities, capacity and utilization", "point"),
+      projectSource(MAPGAP_DATASET_IDS.underserved, "Underserved proxy", "Deterministic service-gap evidence", "area"),
+    ];
+    const initialLayers: IntelligenceLayerState[] = [
+      layer("housing-burden", sources[0], "Rent burden", "choropleth", ["choropleth"], "rentBurdenPercent", undefined, "rentBurdenPercent", 0, 65, 0, ["Lower", "Higher"]),
+      layer("civic-capacity", sources[1], "Facility capacity", "symbol", ["symbol", "heat", "hex", "grid", "h3"], "capacity", "capacity", "capacity", 0, 60, 0, ["Lower", "Higher"]),
+      layer("underserved-proxy", sources[2], "Underserved proxy", "choropleth", ["choropleth"], "underservedScore", undefined, "underservedScore", 0, 100, 0, ["Served", "Underserved"]),
+    ];
+    return {sources, initialLayers};
+  }
+  const sources = [
+    projectSource(MAPGAP_DATASET_IDS.candidates, "Candidate decisions", "Scored relocation candidates", "point"),
+    projectSource(MAPGAP_DATASET_IDS.pois, "Nearby places", "Daily-life OpenStreetMap evidence", "point"),
+    projectSource(MAPGAP_DATASET_IDS.points, "Profile anchors", "Work and household anchors", "point"),
+  ];
+  const initialLayers: IntelligenceLayerState[] = [
+    layer("relocation-candidates", sources[0], "Candidate score", "symbol", ["symbol", "heat", "hex", "grid", "h3"], "totalScore", "totalScore", "totalScore", 0, 100, 0, ["Low", "High"]),
+    layer("nearby-places", sources[1], "Nearby-place density", "heat", ["symbol", "heat", "hex", "grid", "h3"], undefined, undefined, undefined, 0, 1, 0, ["Sparse", "Dense"]),
+    layer("profile-anchors", sources[2], "Profile anchors", "symbol", ["symbol", "heat", "hex", "grid", "h3"], undefined, undefined, undefined, 0, 1, 0, ["Anchor", "Anchor"]),
+  ];
+  return {sources, initialLayers};
 }
 
-function RecoveryScreen({contextLost}: {contextLost: boolean}) {
-  return <main className="recovery-screen" role="alert"><p className="eyebrow">MapGap V3 recovery</p><h1>{contextLost ? "The map graphics context was lost." : "This browser cannot start the comparison canvas."}</h1><p>The portable project is unchanged. Continue in V2 while the graphics surface recovers.</p><a className="handoff-link" href={V2_HANDOFF_URL}>Open V2</a></main>;
+function layer(id: string, source: IntelligenceSource, label: string, mark: IntelligenceLayerState["mark"], supportedMarks: IntelligenceLayerState["supportedMarks"], colorField: string | undefined, weightField: string | undefined, filterField: string | undefined, filterMin: number, filterMax: number, filterValue: number, labels: [string, string]): IntelligenceLayerState {
+  return {id, sourceId: source.id, label, mark, supportedMarks, visible: true, opacity: .76, colorField, weightField, filterField, filterMin, filterMax, filterValue, legend: {title: label, low: labels[0], high: labels[1], colors: ["#bff2e8", "#be3048"]}};
+}
+
+function formatVintage(value: MapGapAnalysisBundleV1["datasets"][number]["provenance"]["sources"][number]["vintage"] | undefined) {
+  if (!value) return "Unknown";
+  return value.kind === "as-of" ? value.date : `${value.startYear}–${value.endYear}`;
+}
+
+function fieldLabel(field: string) {
+  return field.replace(/([A-Z])/g, " $1").toLowerCase();
+}
+
+function markLabel(mark: IntelligenceLayerState["mark"]) {
+  return ({choropleth: "Choropleth", symbol: "Proportional symbols", heat: "Density heat", hex: "Hex aggregation", grid: "Grid aggregation", h3: "Stable H3 cells", isochrone: "Routed isochrone", path: "Route path", trip: "Temporal trip"})[mark];
+}
+
+function selectionSummary(selection: CanonicalSelection) {
+  const properties = selection.properties;
+  const facts = [properties.totalScore !== undefined ? `Score ${properties.totalScore}/100` : null, properties.capacity !== undefined ? `${properties.capacity} capacity` : null, properties.rentBurdenPercent !== undefined ? `${properties.rentBurdenPercent}% rent burden` : null, properties.source ? `Source ${properties.source}` : null].filter(Boolean);
+  return facts.join(" · ") || selection.datasetId;
+}
+
+function describeCollection(data: RenderCollection | null, fallback: "point" | "area") {
+  const values = new Map<string, unknown[]>();
+  const geometryTypes = new Set<IntelligenceGeometryTypeV1>();
+  for (const feature of data?.features ?? []) {
+    const geometryType = feature.geometry.type as IntelligenceGeometryTypeV1;
+    if (["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(geometryType)) {
+      geometryTypes.add(geometryType);
+    }
+    for (const [key, value] of Object.entries(feature.properties ?? {})) {
+      if (value === null || value === undefined || typeof value === "object") continue;
+      const entries = values.get(key) ?? [];
+      entries.push(value);
+      values.set(key, entries);
+    }
+  }
+  if (!geometryTypes.size) geometryTypes.add(fallback === "point" ? "Point" : "Polygon");
+  const featureCount = data?.features.length ?? 0;
+  const fields: IntelligenceFieldV1[] = [...values.entries()].map(([name, entries]) => ({
+    name,
+    label: fieldLabel(name),
+    type: entries.every((value) => typeof value === "number" && Number.isInteger(value))
+      ? "integer"
+      : entries.every((value) => typeof value === "number")
+        ? "number"
+        : entries.every((value) => typeof value === "boolean")
+          ? "boolean"
+          : "string",
+    nullable: entries.length !== featureCount,
+  }));
+  return {fields, geometryTypes: [...geometryTypes]};
+}
+
+function qualifyInlineCollection(data: RenderCollection | null): {ready: boolean; error?: string} {
+  if (!data) return {ready: false, error: "Source not attached"};
+  const serialized = JSON.stringify(data);
+  const strategy = selectScaleStrategy({
+    featureCount: data.features.length,
+    byteCount: new TextEncoder().encode(serialized).byteLength,
+    coordinateCount: countGeoJsonCoordinatePairs(data),
+  });
+  return strategy.kind === "direct-geojson"
+    ? {ready: true}
+    : {ready: false, error: strategy.kind === "arrow-or-query" ? "Source requires the query/Arrow adapter" : "Source requires the tiled adapter"};
+}
+
+function isReadyMessage(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === 2 && record.schema === V2_READY_SCHEMA && record.contextSchema === "mapgap.v2.context/v1";
+}
+
+function safeV2Url(value: string) {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.username || url.password || url.origin !== "https://mapgap-access.netlify.app" || url.pathname !== "/v2" || url.search || url.hash) throw new Error("VITE_MAPGAP_V2_URL must be the approved MapGap V2 route.");
+  return url.href.replace(/\/$/, "");
 }
 
 function useElementSize() {
   const ref = useRef<HTMLElement | null>(null);
-  const [size, setSize] = useState(() => ({
-    width: typeof window === "undefined" ? 960 : Math.max(320, window.innerWidth),
-    height: typeof window === "undefined" ? 640 : Math.max(480, window.innerHeight - 68),
-  }));
+  const [size, setSize] = useState({width: innerWidth, height: innerHeight});
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const update = () => {
-      const rect = element.getBoundingClientRect();
-      setSize({width: Math.max(320, Math.round(rect.width)), height: Math.max(480, Math.round(rect.height))});
-    };
+    const update = () => { const rect = element.getBoundingClientRect(); setSize({width: rect.width, height: rect.height}); };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
   return [ref, size] as const;
-}
-
-function supportsWebGl() {
-  if (typeof document === "undefined") return true;
-  try {
-    const canvas = document.createElement("canvas");
-    return Boolean(canvas.getContext("webgl") || canvas.getContext("experimental-webgl"));
-  } catch { return false; }
-}
-
-function getInitialPreset(): PresetId {
-  if (typeof window === "undefined") return "civic";
-  return window.location.hash === "#relocation" ? "relocation" : "civic";
-}
-
-type MapLibreLike = {
-  getStyle?: () => {sources?: Record<string, unknown>};
-  isStyleLoaded?: () => boolean;
-  areTilesLoaded?: () => boolean;
-  getCenter?: () => {lng: number; lat: number};
-  getZoom?: () => number;
-  zoomIn?: (options?: {duration?: number}) => void;
-  zoomOut?: (options?: {duration?: number}) => void;
-  on?: (event: string, listener: () => void) => void;
-  off?: (event: string, listener: () => void) => void;
-};
-
-type CameraState = {longitude: number; latitude: number; zoom: number};
-
-function cameraDelta(cameras: Record<number, CameraState>) {
-  const left = cameras[0];
-  const right = cameras[1];
-  if (!left || !right) return 0;
-  return Math.max(
-    Math.abs(left.longitude - right.longitude),
-    Math.abs(left.latitude - right.latitude),
-    Math.abs(left.zoom - right.zoom),
-  );
 }

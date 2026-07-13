@@ -1,12 +1,11 @@
 {
-  "status": "public-prerelease",
+  "status": "internal-alpha",
   "owner": "MapGap engineering",
   "reviewBy": "2026-08-15",
-  "upstream": {
-    "repository": "https://github.com/evcatalyst/kepler.gl",
-    "release": "mapgap-v3.0.0-alpha.1",
-    "commit": "2607302",
-    "reason": "Public MapGap security fork prerelease built from Kepler master and maintained as upstreamable patches."
+  "renderer": {
+    "maplibre": "5.24.0",
+    "deck": "9.3.6",
+    "reason": "Purpose-built MapGap runtime using selected direct renderer modules."
   },
   "maximumObserved": {
     "high": 0,
@@ -15,14 +14,14 @@
   },
   "highPackages": [],
   "constraints": [
-    "Public prerelease uses fixture projects only; do not load partner, customer, or authenticated project data.",
-    "Do not expose this app through the V2 Netlify site; publish it as an independently rollbackable prerelease.",
+    "Internal alpha uses fixture projects only; do not load partner, customer, or authenticated project data.",
+    "Do not expose this app through the V2 Netlify site; after release approval, publish it as an independently rollbackable prerelease.",
     "Do not allow arbitrary URL, cloud, SQL, plugin, or file-upload features in the alpha.",
-    "Do not store provider credentials, user access tokens, or V2 local state in portable projects or Kepler configs.",
+    "Do not store provider credentials, user access tokens, or V2 local state in portable projects or intelligence view state.",
     "Run npm run audit:alpha on every dependency or lockfile change; an unfamiliar high finding fails CI."
   ],
   "exitCriteria": [
-    "A supported upstream or maintained patch line clears the high findings and peer dependency conflicts.",
+    "Pinned direct-renderer dependencies clear high findings and license review.",
     "A deployed CSP/WebGL test passes without unsafe-eval.",
     "A production review accepts the resulting SBOM, bundle, license, accessibility, scale, and rollback evidence."
   ]
