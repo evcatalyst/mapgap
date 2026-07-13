@@ -229,6 +229,12 @@ test("portrait and phone switch surfaces without replacing or reloading the V2 i
   await expect(page.getByTestId("intelligence-mounted")).toContainText("MapLibre intelligence workbench mounted", {timeout: 30_000});
   expect(await iframeHandle!.evaluate((node) => node.isConnected && node === document.querySelector("iframe.v2-frame"))).toBe(true);
 
+  // V2 is authoritative while camera linking is enabled, so a live debounced
+  // bounds update may legitimately supersede a manual Intelligence pan. This
+  // persistence assertion exercises the explicit independent-camera mode.
+  await page.getByRole("button", {name: /^(Linked to V2|Link V2 when ready)$/}).click();
+  await expect(page.getByRole("button", {name: "Independent camera"})).toHaveAttribute("aria-pressed", "false");
+
   const initialViewport = await page.getByTestId("v3-shell").getAttribute("data-intelligence-viewport");
   const canvasBox = await page.locator(".maplibregl-canvas").boundingBox();
   expect(canvasBox).not.toBeNull();
