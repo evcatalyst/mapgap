@@ -68,6 +68,11 @@ select {
   min-height: 44px;
 }
 
+.mapgap-v2-layer-drawer {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @media (min-width: 640px) {
   .mapgap-v2-fab {
     bottom: calc(env(safe-area-inset-bottom) + 1rem);

@@ -102,5 +102,13 @@ for (const viewport of viewports) {
       caret: "hide",
       maxDiffPixelRatio: 0.02,
     });
+
+    await drawer.getByRole("button", { name: "Add as layer" }).click();
+    await expect(page.getByRole("complementary", { name: "Map layers" })).toBeVisible();
+    await expect(page).toHaveScreenshot(`${viewport.name}-layers.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    });
   });
 }

@@ -729,6 +729,60 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("v2 saves refined results and access heat as a tunable map layer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2?category=laundry&bbox=-74.08,40.68,-74.02,40.74");
+
+    const nearbyDrawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await expect(nearbyDrawer.getByRole("heading", { name: "Laundry nearby" })).toBeVisible();
+    await nearbyDrawer.getByRole("button", { name: "Walk" }).click();
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
+    await nearbyDrawer.getByRole("button", { name: "Add as layer" }).click();
+
+    const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
+    await expect(layerDrawer).toBeVisible();
+    await expect(layerDrawer.getByText("Laundry", { exact: true })).toBeVisible();
+    await expect(layerDrawer.getByText("2 places")).toBeVisible();
+    await expect(layerDrawer.getByRole("button", { name: "10 min walk" })).toBeVisible();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(2);
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
+
+    const compactMarkerWidth = await page
+      .locator(".mapgap-service-marker")
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(compactMarkerWidth).toBeLessThanOrEqual(10);
+
+    await layerDrawer.getByRole("button", { name: "Hide Laundry" }).click();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(0);
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(0);
+
+    await layerDrawer.getByRole("button", { name: "Show Laundry" }).click();
+    await layerDrawer
+      .getByRole("button", { name: "Delete Viewport Laundromat B from Laundry" })
+      .click();
+    await expect(layerDrawer.getByText("1 place")).toBeVisible();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(1);
+
+    await layerDrawer.getByRole("button", { name: "Close layers panel" }).click();
+    await expect(page.getByRole("button", { name: "Open map layers, 1 saved" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Laundry nearby" }).click();
+    await nearbyDrawer.getByRole("button", { name: "Categories" }).click();
+    await nearbyDrawer.getByRole("button", { name: /Coffee/ }).click();
+    await nearbyDrawer.getByRole("button", { name: "Add as layer" }).click();
+    await expect(layerDrawer.getByText("2 layers")).toBeVisible();
+
+    const coffeeLayer = layerDrawer.getByRole("region", { name: "Map layer Coffee" });
+    await coffeeLayer.getByRole("button", { name: "Move Coffee up" }).click();
+    await expect(layerDrawer.getByRole("region").first()).toHaveAttribute(
+      "aria-label",
+      "Map layer Coffee",
+    );
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("ipad v2 keeps the category drawer staged over a live map", async ({ page }) => {
     await page.setViewportSize({ width: 820, height: 1180 });
     await mockAppRoutes(page);
