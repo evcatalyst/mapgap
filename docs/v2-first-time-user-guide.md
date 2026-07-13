@@ -66,7 +66,11 @@ workflows. The `/v2` demo is meant to be calm, direct, and shareable.
 Every result includes a source badge.
 
 - `Google Places`: daily-life businesses such as laundromats, cafes, and grocery
-  stores, plus custom category searches.
+  stores, plus custom categories without a typed open-data provider.
+- `OpenStreetMap`: typed daily-life features such as mapped dog parks.
+- `Town verified`: a mapped feature cross-checked against an official local
+  source. For example, Niskayuna identifies its fenced dog park inside Blatnick
+  Park behind the baseball fields.
 - `NY Open Data`: official New York library data where configured and available.
 - `NJ Open Data`: official New Jersey library data where configured and
   available.
@@ -74,6 +78,10 @@ Every result includes a source badge.
 Libraries prefer official NY/NJ public data where possible. If an official
 source is unavailable or returns no useful records, MapGap may fall back to
 Google Places and show a quiet warning.
+
+Dog-park searches prefer typed OpenStreetMap records and verified local sources.
+Google Places is queried only as a fallback when no mapped dog parks are
+available in the selected view.
 
 The default New York source is the NYS ITS public-library FeatureServer based
 on input from the New York State Education Department. The default New Jersey

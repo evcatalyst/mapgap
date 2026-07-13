@@ -19,6 +19,8 @@ export const SERVICE_POINT_SOURCE_LABELS: Record<ServicePointSource, string> = {
   ny_libraries: "NY Open Data",
   nj_libraries: "NJ Open Data",
   hybrid: "Open Data",
+  openstreetmap: "OpenStreetMap",
+  official_local: "Town verified",
 };
 
 export const SERVICE_POINT_COLORS: Record<ServicePointCategory, string> = {

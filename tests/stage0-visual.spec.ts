@@ -50,7 +50,10 @@ async function expectInsideViewport(page: Page, locator: Locator) {
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
 }
 
-async function mockAppRoutes(page: Page) {
+async function mockAppRoutes(
+  page: Page,
+  options?: { onIsochroneRequest?: (body: Record<string, unknown>) => void },
+) {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -140,6 +143,102 @@ async function mockAppRoutes(page: Page) {
     const responseLabel = responseLabels[category] || resultLabel;
     const source = category === "library" ? "nj_libraries" : "google_places";
     const sourceLabel = category === "library" ? "NJ Open Data" : "Google Places";
+    const activeExtensions = (url.searchParams.get("include") || "").split(",").filter(Boolean);
+    const dogSearch = category === "custom" && customQuery.toLowerCase().includes("dog");
+    const extensions =
+      category === "grocery"
+        ? [
+            {
+              id: "specialty_food",
+              label: "Local & specialty food",
+              description: "Focused food retailers.",
+            },
+            {
+              id: "convenience_food",
+              label: "Convenience stores",
+              description: "Smaller last-mile food options.",
+            },
+          ]
+        : category === "coffee"
+          ? [
+              {
+                id: "bakery_cafes",
+                label: "Bakery & breakfast cafes",
+                description: "Related breakfast venues that serve coffee.",
+              },
+              {
+                id: "coffee_available",
+                label: "Coffee available",
+                description: "Fast-food and convenience fallbacks.",
+              },
+            ]
+          : dogSearch
+          ? [
+              {
+                id: "leashed_parks",
+                label: "Leash-required parks",
+                description: "Regular parks where dogs are allowed on leash.",
+              },
+            ]
+          : [];
+    const basePoints = [
+      {
+        id: `${source}-${category}-1`,
+        name: `Viewport ${resultLabel} A`,
+        category,
+        categoryLabel: category === "custom" ? resultLabel : undefined,
+        location: { lat: 40.722, lng: -74.045 },
+        source,
+        address: "Current map view",
+        confidence: "high",
+        provenance: { label: sourceLabel },
+        match:
+          category === "grocery"
+            ? {
+                tier: "primary",
+                subclassification: "Full grocery",
+                reason: "Provider types identify this as a grocery store.",
+              }
+            : undefined,
+      },
+      {
+        id: `${source}-${category}-2`,
+        name: `Viewport ${resultLabel} B`,
+        category,
+        categoryLabel: category === "custom" ? resultLabel : undefined,
+        location: { lat: 40.714, lng: -74.052 },
+        source,
+        address: "Current map view",
+        confidence: "high",
+        provenance: { label: sourceLabel },
+        match: dogSearch
+          ? {
+              tier: "related",
+              extensionId: "leashed_parks",
+              subclassification: "Leash-required park",
+              reason: "Included because this park is mapped as allowing dogs on leash.",
+              conditions: ["Leash required", "Not a dedicated dog park"],
+            }
+          : category === "grocery"
+            ? {
+                tier: "related",
+                extensionId: "specialty_food",
+                subclassification: "Specialty food store",
+                reason: "Included as a focused food retailer.",
+              }
+            : category === "coffee"
+              ? {
+                  tier: "related",
+                  extensionId: "bakery_cafes",
+                  subclassification: "Bakery or breakfast cafe",
+                  reason: "Included as a breakfast venue that serves coffee.",
+                }
+            : undefined,
+      },
+    ];
+    const points = basePoints.filter(
+      (point) => !point.match?.extensionId || activeExtensions.includes(point.match.extensionId),
+    );
 
     await route.fulfill({
       contentType: "application/json",
@@ -148,32 +247,11 @@ async function mockAppRoutes(page: Page) {
         label: responseLabel,
         query: category === "custom" ? customQuery : undefined,
         bbox: [-74.08, 40.68, -74.02, 40.74],
-        count: 2,
+        count: points.length,
         sources: [source],
-        points: [
-          {
-            id: `${source}-${category}-1`,
-            name: `Viewport ${resultLabel} A`,
-            category,
-            categoryLabel: category === "custom" ? resultLabel : undefined,
-            location: { lat: 40.722, lng: -74.045 },
-            source,
-            address: "Current map view",
-            confidence: "high",
-            provenance: { label: sourceLabel },
-          },
-          {
-            id: `${source}-${category}-2`,
-            name: `Viewport ${resultLabel} B`,
-            category,
-            categoryLabel: category === "custom" ? resultLabel : undefined,
-            location: { lat: 40.714, lng: -74.052 },
-            source,
-            address: "Current map view",
-            confidence: "high",
-            provenance: { label: sourceLabel },
-          },
-        ],
+        points,
+        extensions,
+        activeExtensions,
         warnings: category === "library" ? ["Libraries loaded from NJ public source."] : [],
       }),
     });
@@ -208,6 +286,9 @@ async function mockAppRoutes(page: Page) {
   });
 
   await page.route("**/api/routing/isochrones", async (route) => {
+    options?.onIsochroneRequest?.(
+      (route.request().postDataJSON() || {}) as Record<string, unknown>,
+    );
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -374,11 +455,66 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(page.getByText("Viewport Laundromat A")).toBeVisible();
 
     await drawer.getByRole("button", { name: "Walk" }).click();
+    await expect(drawer.getByRole("group", { name: "Walking time" })).toBeVisible();
     await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
     await drawer.getByRole("button", { name: "Reset nearby search" }).click();
     await expect(page.getByRole("button", { name: "Explore Nearby" })).toBeVisible();
     await expect(page.getByText("Viewport Laundromat A")).toHaveCount(0);
     await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(0);
+  });
+
+  test("v2 expands walking reach without repeating the place search", async ({ page }) => {
+    const routingRequests: Array<Record<string, unknown>> = [];
+    let servicePointSearches = 0;
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await mockAppRoutes(page, {
+      onIsochroneRequest: (body) => routingRequests.push(body),
+    });
+    await page.route("**/api/service-points**", async (route) => {
+      servicePointSearches += 1;
+      await route.fallback();
+    });
+
+    await page.goto("/v2");
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Laundry/ }).click();
+    await drawer.getByRole("button", { name: "Walk" }).click();
+    await expect(drawer.getByRole("button", { name: "10 minute walk reach" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    await drawer.getByRole("button", { name: "20 minute walk reach" }).click();
+    await expect(drawer.getByRole("button", { name: "20 minute walk reach" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    expect(servicePointSearches).toBe(1);
+    expect(routingRequests.length).toBeGreaterThanOrEqual(4);
+    expect(routingRequests.at(-1)?.ranges).toEqual([300, 600, 900, 1200]);
+  });
+
+  test("v2 service markers shrink as the map zooms out", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mockAppRoutes(page);
+
+    await page.goto("/v2?category=laundry&bbox=-74.08,40.68,-74.02,40.74");
+    const marker = page.locator(".mapgap-service-marker").first();
+    await expect(marker).toBeVisible();
+    const closeSize = await marker.boundingBox();
+
+    const zoomOut = page.getByRole("button", { name: "Zoom out" });
+    await zoomOut.click();
+    await zoomOut.click();
+    await zoomOut.click();
+    await zoomOut.click();
+    const regionalSize = await marker.boundingBox();
+
+    expect(regionalSize?.width ?? 999).toBeLessThan(closeSize?.width ?? 0);
+    expect(regionalSize?.width ?? 0).toBeLessThanOrEqual(18);
   });
 
   for (const viewport of mobileEdgeViewports) {
@@ -421,7 +557,7 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(page.getByText("Viewport Laundromat A")).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole("button", { name: /Viewport Laundromat A/ }).click();
+    await page.getByRole("button", { name: /^Viewport Laundromat A/ }).click();
     await expect(drawer.getByRole("heading", { name: "Viewport Laundromat A" })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
@@ -523,6 +659,74 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expect(drawer.getByText("Google Places").first()).toBeVisible();
     await drawer.getByRole("button", { name: "Nearby entries" }).click();
     await expect(page.getByText("Viewport pharmacies A")).toBeVisible();
+  });
+
+  test("v2 explains conditional dog-friendly parks and persists personal boosts", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByLabel("Custom category").fill("dog parks");
+    await drawer.getByRole("button", { name: "Search custom places" }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Leash-required parks" }).click();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+
+    await expect(drawer.getByText(/Primary matches remain first/)).toBeVisible();
+    await expect(drawer.getByText("Leash-required park", { exact: true })).toBeVisible();
+    await drawer.getByRole("button", { name: "Boost Viewport dog parks B" }).click();
+    await expect(drawer.getByText("Boosted for you")).toBeVisible();
+
+    await page.reload();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Boosted for you")).toBeVisible();
+    await expect(drawer.locator(".divide-y > div").first()).toContainText("Viewport dog parks B");
+  });
+
+  test("v2 keeps full groceries primary and lets users add specialty food stores", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 1180 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Groceries/ }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Local & specialty food" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await drawer.getByRole("button", { name: "Local & specialty food" }).click();
+    await expect(drawer.getByText("2 places").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Specialty food store", { exact: true })).toBeVisible();
+  });
+
+  test("v2 keeps coffee shops primary and exposes related coffee venues on demand", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Explore Nearby" }).click();
+    const drawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await drawer.getByRole("button", { name: /Coffee/ }).click();
+    await expect(drawer.getByText("1 place").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Bakery & breakfast cafes" }).click();
+    await expect(drawer.getByText("2 places").first()).toBeVisible();
+    await drawer.getByRole("button", { name: "Nearby entries" }).click();
+    await expect(drawer.getByText("Bakery or breakfast cafe", { exact: true })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
   });
 
   test("ipad v2 keeps the category drawer staged over a live map", async ({ page }) => {

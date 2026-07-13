@@ -80,9 +80,29 @@ export type PoiLayerSource = PoiSource | "mixed";
 
 export type ServicePointCategory = "laundry" | "coffee" | "grocery" | "library" | "custom";
 
-export type ServicePointSource = "google_places" | "ny_libraries" | "nj_libraries" | "hybrid";
+export type ServicePointSource =
+  | "google_places"
+  | "ny_libraries"
+  | "nj_libraries"
+  | "hybrid"
+  | "openstreetmap"
+  | "official_local";
 
 export type ServicePointConfidence = "high" | "medium" | "low";
+
+export type ServicePointMatch = {
+  tier: "primary" | "related" | "fallback";
+  subclassification?: string;
+  extensionId?: string;
+  reason: string;
+  conditions?: string[];
+};
+
+export type ServicePointExtension = {
+  id: string;
+  label: string;
+  description: string;
+};
 
 export type DrawerMode =
   | "closed"
@@ -110,6 +130,7 @@ export type ServicePoint = {
   sourceUpdatedAt?: string;
   jurisdiction?: "NY" | "NJ";
   confidence?: ServicePointConfidence;
+  match?: ServicePointMatch;
   provenance?: {
     label?: string;
     datasetId?: string;
@@ -130,6 +151,8 @@ export type ServicePointResponse = {
   count: number;
   sources: ServicePointSource[];
   points: ServicePoint[];
+  extensions?: ServicePointExtension[];
+  activeExtensions?: string[];
   warnings?: string[];
 };
 

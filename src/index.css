@@ -167,38 +167,38 @@ select {
 }
 
 .mapgap-service-marker-shell {
+  display: grid !important;
+  place-items: center;
   background: transparent;
   border: 0;
 }
 
 .mapgap-service-marker {
   position: relative;
-  width: 28px;
-  height: 28px;
+  width: var(--service-marker-size, 28px);
+  height: var(--service-marker-size, 28px);
   border-radius: 999px;
   background: color-mix(in srgb, var(--service-color) 88%, white 12%);
-  border: 3px solid white;
+  border: clamp(2px, calc(var(--service-marker-size, 28px) / 9), 3px) solid white;
   box-shadow: 0 10px 18px rgba(15, 23, 42, 0.25);
+  transition: width 140ms ease, height 140ms ease, box-shadow 140ms ease;
 }
 
 .mapgap-service-marker span {
   position: absolute;
-  inset: 8px;
+  left: 50%;
+  top: 50%;
+  width: 28%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
   border-radius: 999px;
   background: white;
 }
 
 .mapgap-service-marker--selected {
-  width: 36px;
-  height: 36px;
-  border-width: 4px;
   box-shadow:
     0 0 0 5px color-mix(in srgb, var(--service-color) 24%, transparent),
     0 14px 24px rgba(15, 23, 42, 0.3);
-}
-
-.mapgap-service-marker--selected span {
-  inset: 11px;
 }
 
 .dark .mapgap-service-marker {

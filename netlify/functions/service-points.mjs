@@ -11,7 +11,21 @@ import {
 const GOOGLE_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby";
 const GOOGLE_TEXT_URL = "https://places.googleapis.com/v1/places:searchText";
 const GOOGLE_FIELD_MASK =
-  "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.nationalPhoneNumber,places.websiteUri,places.currentOpeningHours";
+  "places.id,places.displayName,places.formattedAddress,places.location,places.types";
+const OVERPASS_URLS = Array.from(
+  new Set(
+    [
+      process.env.OVERPASS_API_URL?.trim(),
+      "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+      "https://lz4.overpass-api.de/api/interpreter",
+      "https://overpass-api.de/api/interpreter",
+    ].filter(Boolean),
+  ),
+);
+const NISKAYUNA_DOG_PARK_OSM_ID = "way/485187501";
+const COLONIE_DOG_PARK_OSM_ID = "way/1107096494";
+const NISKAYUNA_DOG_PARK_SOURCE_URL =
+  "https://cms2.revize.com/revize/Niskayuna/bus-directory/Document%20Center/Department/Town%20Clerk/Dog%20park/dog_park_information_1.pdf";
 const ARCGIS_ITEM_URL = "https://www.arcgis.com/sharing/rest/content/items";
 const NY_LIBRARY_URL =
   process.env.NY_LIBRARY_ARCGIS_URL?.trim() ||
@@ -25,6 +39,7 @@ const NJ_LIBRARY_ITEM_ID =
   process.env.NJ_LIBRARY_ARCGIS_ITEM_ID?.trim() ||
   "9341dca37cdf4f258f2df6ae439f5be4";
 const GOOGLE_TIMEOUT_MS = 10000;
+const OVERPASS_TIMEOUT_MS = 10000;
 const LIBRARY_TIMEOUT_MS = 12000;
 const MAX_RESULTS = 40;
 const MAX_LATITUDE_SPAN = 1.5;
@@ -46,8 +61,88 @@ const CATEGORY_LABELS = {
 
 const GOOGLE_TYPES = {
   coffee: ["cafe", "coffee_shop"],
-  grocery: ["grocery_store", "supermarket"],
+  grocery: ["grocery_store", "supermarket", "discount_supermarket", "hypermarket"],
   library: ["library"],
+};
+
+const GROCERY_PRIMARY_TYPES = GOOGLE_TYPES.grocery;
+
+const GROCERY_SPECIALTY_TYPES = [
+  "asian_grocery_store",
+  "butcher_shop",
+  "farmers_market",
+  "food_store",
+  "health_food_store",
+  "market",
+];
+const GROCERY_DISTINCTIVE_SPECIALTY_TYPES = [
+  "asian_grocery_store",
+  "butcher_shop",
+  "farmers_market",
+  "health_food_store",
+];
+const GROCERY_CONVENIENCE_TYPES = ["convenience_store", "general_store"];
+const GROCERY_FULL_SERVICE_TYPES = ["supermarket", "discount_supermarket", "hypermarket"];
+const GROCERY_FULL_SERVICE_NAME_PATTERN =
+  /\b(supermarket|hannaford|market\s*32|price\s*(?:rite|chopper)|shop\s*rite|target\s+grocery|whole\s+foods|trader\s+joe'?s|aldi|lidl|tops|wegmans|stop\s*&?\s*shop|key\s+food|walmart)\b/i;
+const GROCERY_SPECIALTY_NAME_PATTERN =
+  /\b(asian|halal|indian|west\s*indian|butcher|farm|orchard|co-?op|health\s*food|vitamin|trading)\b/i;
+const GROCERY_FALLBACK_NAME_PATTERN =
+  /\b(convenience|bodega|corner\s+store|deli(?:catessen)?|mini\s*mart|quick\s*mart|gas\s+mart)\b/i;
+const COFFEE_PRIMARY_NAME_PATTERN =
+  /\b(coffee|cafe|café|brew|espresso|roast|java|bean|grounds|starbucks|dunkin)\b/i;
+const COFFEE_RELATED_TYPES = [
+  "bakery",
+  "bagel_shop",
+  "breakfast_restaurant",
+  "diner",
+  "sandwich_shop",
+];
+const COFFEE_FALLBACK_TYPES = [
+  "convenience_store",
+  "gas_station",
+  "hamburger_restaurant",
+];
+const COFFEE_FALLBACK_NAME_PATTERN =
+  /\b(snack\s+shack|convenience|gas\s+station|mcdonald'?s|stewart'?s|balloons?|gift\s+shop)\b/i;
+
+const RESULT_EXTENSIONS = {
+  grocery: [
+    {
+      id: "specialty_food",
+      label: "Local & specialty food",
+      description: "Local groceries, Asian markets, butchers, farm markets, and focused food stores.",
+    },
+    {
+      id: "convenience_food",
+      label: "Convenience stores",
+      description: "Smaller convenience and general stores as a last-mile fallback.",
+    },
+  ],
+  coffee: [
+    {
+      id: "bakery_cafes",
+      label: "Bakery & breakfast cafes",
+      description: "Bakeries, bagel shops, diners, and breakfast places that serve coffee.",
+    },
+    {
+      id: "coffee_available",
+      label: "Coffee available",
+      description: "Fast-food and convenience locations where coffee is available but not the focus.",
+    },
+  ],
+  dog_parks: [
+    {
+      id: "leashed_parks",
+      label: "Leash-required parks",
+      description: "Regular parks explicitly mapped as allowing dogs on leash.",
+    },
+    {
+      id: "dog_friendly_parks",
+      label: "Other dog-friendly parks",
+      description: "Parks mapped as allowing dogs; verify local leash rules.",
+    },
+  ],
 };
 
 const GOOGLE_TEXT_QUERIES = {
@@ -63,6 +158,8 @@ const SOURCE_LABELS = {
   ny_libraries: "NY Open Data",
   nj_libraries: "NJ Open Data",
   hybrid: "NY/NJ Open Data",
+  openstreetmap: "OpenStreetMap",
+  official_local: "Town verified",
 };
 
 const STATE_REGIONS = {
@@ -84,6 +181,10 @@ const PUBLIC_LIBRARY_INCLUDE_PATTERN =
   /\b(public|free|community|county|city|town|village|district|state|memorial|association)\b.*\blibrar(?:y|ies)\b|\blibrar(?:y|ies)\b.*\b(public|free|community|county|city|town|village|district|state|memorial|association)\b/i;
 const PUBLIC_LIBRARY_FALSE_POSITIVE_PATTERN =
   /\b(university|college|graduate|law\s+school|medical\s+school|campus|seminary|sculpture|museum|archive|archives|monographic)\b/i;
+const DOG_PARK_QUERY_PATTERN =
+  /\b(?:dog|canine)\s+(?:park|parks|run|runs)\b|\boff[-\s]?leash\s+(?:park|parks|area|areas)\b/i;
+const DOG_PARK_RESULT_PATTERN =
+  /\b(?:dog|canine)\s+(?:park|parks|run|runs)\b|\boff[-\s]?leash\b/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Accept",
@@ -167,6 +268,47 @@ function parseCustomQuery(raw) {
   }
 
   return { query };
+}
+
+function isDogParkQuery(query) {
+  return typeof query === "string" && DOG_PARK_QUERY_PATTERN.test(query);
+}
+
+function extensionsFor(category, query) {
+  if (category === "grocery") {
+    return RESULT_EXTENSIONS.grocery;
+  }
+
+  if (category === "coffee") {
+    return RESULT_EXTENSIONS.coffee;
+  }
+
+  if (category === "custom" && isDogParkQuery(query)) {
+    return RESULT_EXTENSIONS.dog_parks;
+  }
+
+  return [];
+}
+
+function parseExtensions(raw, availableExtensions) {
+  const allowed = new Set(availableExtensions.map((extension) => extension.id));
+  const requested = typeof raw === "string" ? raw.split(",").map((value) => value.trim()) : [];
+
+  return Array.from(new Set(requested.filter((value) => allowed.has(value))));
+}
+
+function googleTypesFor(category, activeExtensions) {
+  const types = [...(GOOGLE_TYPES[category] || [])];
+
+  if (category === "grocery" && activeExtensions.includes("specialty_food")) {
+    types.push(...GROCERY_SPECIALTY_TYPES);
+  }
+
+  if (category === "grocery" && activeExtensions.includes("convenience_food")) {
+    types.push(...GROCERY_CONVENIENCE_TYPES);
+  }
+
+  return Array.from(new Set(types));
 }
 
 function bboxToApi(bounds) {
@@ -258,16 +400,6 @@ function googleLocationBias(bounds) {
   };
 }
 
-function currentHoursSummary(place) {
-  const weekdayDescriptions = place.currentOpeningHours?.weekdayDescriptions;
-
-  if (Array.isArray(weekdayDescriptions) && weekdayDescriptions.length > 0) {
-    return weekdayDescriptions.slice(0, 2).join("; ");
-  }
-
-  return undefined;
-}
-
 function normalizeGooglePlace(place, category, bounds, categoryLabel) {
   const lat = normalizeNumber(place.location?.latitude);
   const lng = normalizeNumber(place.location?.longitude);
@@ -284,9 +416,6 @@ function normalizeGooglePlace(place, category, bounds, categoryLabel) {
     location: { lat, lng },
     source: "google_places",
     address: place.formattedAddress,
-    phone: place.nationalPhoneNumber,
-    website: place.websiteUri,
-    hoursSummary: currentHoursSummary(place),
     confidence: "medium",
     provenance: {
       label: SOURCE_LABELS.google_places,
@@ -298,10 +427,96 @@ function normalizeGooglePlace(place, category, bounds, categoryLabel) {
     },
   };
 
+  if (category === "grocery") {
+    const types = point.rawData.types;
+    const isPrimary =
+      types.some((type) => GROCERY_FULL_SERVICE_TYPES.includes(type)) ||
+      GROCERY_FULL_SERVICE_NAME_PATTERN.test(point.name);
+    const isConvenience =
+      types.some((type) => GROCERY_CONVENIENCE_TYPES.includes(type)) ||
+      GROCERY_FALLBACK_NAME_PATTERN.test(point.name);
+    const isDistinctiveSpecialty =
+      types.some((type) => GROCERY_DISTINCTIVE_SPECIALTY_TYPES.includes(type)) ||
+      GROCERY_SPECIALTY_NAME_PATTERN.test(point.name);
+    const isSpecialty =
+      types.some((type) => GROCERY_SPECIALTY_TYPES.includes(type)) ||
+      types.includes("grocery_store") ||
+      isDistinctiveSpecialty;
+
+    if (isPrimary) {
+      point.match = {
+        tier: "primary",
+        subclassification: "Full grocery",
+        reason: "Provider types identify this as a grocery store or supermarket.",
+      };
+    } else if (isDistinctiveSpecialty) {
+      point.match = {
+        tier: "related",
+        extensionId: "specialty_food",
+        subclassification: "Specialty food store",
+        reason: "Included as a focused food retailer that may complement a full grocery store.",
+      };
+    } else if (isConvenience) {
+      point.match = {
+        tier: "fallback",
+        extensionId: "convenience_food",
+        subclassification: "Convenience store",
+        reason: "Included as a smaller last-mile food option, not a full grocery store.",
+      };
+    } else if (isSpecialty) {
+      point.match = {
+        tier: "related",
+        extensionId: "specialty_food",
+        subclassification: "Local or specialty food store",
+        reason: "Included as a local or focused food retailer that may complement a full grocery store.",
+      };
+    } else {
+      point.match = {
+        tier: "fallback",
+        subclassification: "Unclassified food retailer",
+        reason: "Provider types do not establish a supported grocery subclassification.",
+      };
+    }
+  }
+
+  if (category === "coffee") {
+    const types = point.rawData.types;
+    const hasRelatedSignal = types.some((type) => COFFEE_RELATED_TYPES.includes(type));
+    const hasFallbackSignal =
+      types.some((type) => COFFEE_FALLBACK_TYPES.includes(type)) ||
+      COFFEE_FALLBACK_NAME_PATTERN.test(point.name) ||
+      (types.includes("fast_food_restaurant") && !hasRelatedSignal);
+    const hasPrimarySignal =
+      COFFEE_PRIMARY_NAME_PATTERN.test(point.name) ||
+      (types.includes("coffee_shop") && !hasFallbackSignal && !hasRelatedSignal);
+
+    if (hasPrimarySignal) {
+      point.match = {
+        tier: "primary",
+        subclassification: "Coffee shop or cafe",
+        reason: "The name and provider types indicate that coffee or cafe service is a primary focus.",
+      };
+    } else if (hasFallbackSignal) {
+      point.match = {
+        tier: "fallback",
+        extensionId: "coffee_available",
+        subclassification: "Coffee available",
+        reason: "Coffee is available here, but the location is primarily fast food or convenience retail.",
+      };
+    } else {
+      point.match = {
+        tier: "related",
+        extensionId: "bakery_cafes",
+        subclassification: "Bakery or breakfast cafe",
+        reason: "Included as a bakery, breakfast place, or similar venue that serves coffee.",
+      };
+    }
+  }
+
   return isInsideBounds(point, bounds) ? point : undefined;
 }
 
-function isRelevantGooglePoint(point, category) {
+function isRelevantGooglePoint(point, category, query) {
   if (!point) {
     return false;
   }
@@ -314,6 +529,23 @@ function isRelevantGooglePoint(point, category) {
     }
 
     return PUBLIC_LIBRARY_INCLUDE_PATTERN.test(point.name);
+  }
+
+  if (category === "custom" && isDogParkQuery(query)) {
+    const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
+    return types.includes("dog_park") || DOG_PARK_RESULT_PATTERN.test(point.name);
+  }
+
+  if (category === "grocery") {
+    const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
+    return [...GROCERY_PRIMARY_TYPES, ...GROCERY_SPECIALTY_TYPES, ...GROCERY_CONVENIENCE_TYPES].some(
+      (type) => types.includes(type),
+    );
+  }
+
+  if (category === "coffee") {
+    const types = Array.isArray(point.rawData?.types) ? point.rawData.types : [];
+    return GOOGLE_TYPES.coffee.some((type) => types.includes(type));
   }
 
   if (category !== "laundry") {
@@ -329,6 +561,10 @@ function isRelevantGooglePoint(point, category) {
   return LAUNDROMAT_INCLUDE_PATTERN.test(searchable);
 }
 
+function isIncludedByExtension(point, activeExtensions) {
+  return !point?.match?.extensionId || activeExtensions.includes(point.match.extensionId);
+}
+
 function textQueryFor(category, query) {
   if (category === "custom" && query) {
     return query;
@@ -337,7 +573,13 @@ function textQueryFor(category, query) {
   return GOOGLE_TEXT_QUERIES[category] || CATEGORY_LABELS[category] || "places";
 }
 
-async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RESULTS, query }) {
+async function fetchGoogleServicePoints({
+  category,
+  bounds,
+  maxResults = MAX_RESULTS,
+  query,
+  activeExtensions = [],
+}) {
   const apiKey = getConfiguredSecret("GOOGLE_PLACES_API_KEY");
 
   if (!apiKey) {
@@ -350,13 +592,25 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
   const shouldUseTextSearch = category === "laundry" || category === "custom";
 
   if (shouldUseTextSearch) {
-    return fetchGoogleTextServicePoints({ category, bounds, maxResults, query });
+    return fetchGoogleTextServicePoints({
+      category,
+      bounds,
+      maxResults,
+      query,
+      activeExtensions,
+    });
   }
 
   const { center, radius } = boundsCircle(bounds);
 
   if (radius > 50000) {
-    return fetchGoogleTextServicePoints({ category, bounds, maxResults, query });
+    return fetchGoogleTextServicePoints({
+      category,
+      bounds,
+      maxResults,
+      query,
+      activeExtensions,
+    });
   }
 
   const response = await fetch(GOOGLE_NEARBY_URL, {
@@ -368,7 +622,7 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
       "X-Goog-FieldMask": GOOGLE_FIELD_MASK,
     },
     body: JSON.stringify({
-      includedTypes: GOOGLE_TYPES[category],
+      includedTypes: googleTypesFor(category, activeExtensions),
       maxResultCount: Math.min(maxResults, 20),
       rankPreference: "DISTANCE",
       locationRestriction: {
@@ -393,12 +647,19 @@ async function fetchGoogleServicePoints({ category, bounds, maxResults = MAX_RES
   const data = await response.json();
   const points = (Array.isArray(data.places) ? data.places : [])
     .map((place) => normalizeGooglePlace(place, category, bounds))
-    .filter((point) => isRelevantGooglePoint(point, category));
+    .filter((point) => isRelevantGooglePoint(point, category, query))
+    .filter((point) => isIncludedByExtension(point, activeExtensions));
 
   return { points: dedupeServicePoints(points).slice(0, maxResults) };
 }
 
-async function fetchGoogleTextServicePoints({ category, bounds, maxResults, query }) {
+async function fetchGoogleTextServicePoints({
+  category,
+  bounds,
+  maxResults,
+  query,
+  activeExtensions = [],
+}) {
   const apiKey = getConfiguredSecret("GOOGLE_PLACES_API_KEY");
 
   if (!apiKey) {
@@ -433,7 +694,8 @@ async function fetchGoogleTextServicePoints({ category, bounds, maxResults, quer
   const data = await response.json();
   const points = (Array.isArray(data.places) ? data.places : [])
     .map((place) => normalizeGooglePlace(place, category, bounds, query))
-    .filter((point) => isRelevantGooglePoint(point, category));
+    .filter((point) => isRelevantGooglePoint(point, category, query))
+    .filter((point) => isIncludedByExtension(point, activeExtensions));
 
   return {
     points: dedupeServicePoints(points).slice(0, maxResults),
@@ -441,6 +703,221 @@ async function fetchGoogleTextServicePoints({ category, bounds, maxResults, quer
       category === "custom"
         ? ["Custom categories use Google Places provider matching. Verify result relevance."]
         : [],
+  };
+}
+
+function normalizeOsmDogPark(element, bounds) {
+  const lat = normalizeNumber(element.lat ?? element.center?.lat);
+  const lng = normalizeNumber(element.lon ?? element.center?.lon);
+
+  if (!element.type || element.id === undefined || lat === undefined || lng === undefined) {
+    return undefined;
+  }
+
+  const osmId = `${element.type}/${element.id}`;
+  const tags = element.tags || {};
+
+  const isDedicatedDogPark = tags.leisure === "dog_park";
+  const dogAccess = cleanText(tags.dog);
+  const isDogFriendlyPark = tags.leisure === "park" && ["yes", "leashed"].includes(dogAccess);
+
+  if (!isDedicatedDogPark && !isDogFriendlyPark) {
+    return undefined;
+  }
+
+  const street = [cleanText(tags["addr:housenumber"]), cleanText(tags["addr:street"])]
+    .filter(Boolean)
+    .join(" ");
+  const address = buildAddress(
+    street,
+    cleanText(tags["addr:city"]),
+    cleanText(tags["addr:state"]),
+    cleanText(tags["addr:postcode"]),
+  );
+  const point = {
+    id: `osm-${element.type}-${element.id}`,
+    name: cleanText(tags.name) || (isDedicatedDogPark ? "Mapped dog park" : "Dog-friendly park"),
+    category: "custom",
+    categoryLabel: isDedicatedDogPark ? "Dog parks" : "Dog-friendly parks",
+    location: { lat, lng },
+    source: "openstreetmap",
+    address,
+    sourceUrl: `https://www.openstreetmap.org/${osmId}`,
+    sourceDatasetId: osmId,
+    confidence: isDedicatedDogPark ? "high" : "medium",
+    match: isDedicatedDogPark
+      ? {
+          tier: "primary",
+          subclassification: "Dedicated dog park",
+          reason: "Mapped as a dedicated dog park.",
+        }
+      : {
+          tier: dogAccess === "leashed" ? "related" : "fallback",
+          extensionId: dogAccess === "leashed" ? "leashed_parks" : "dog_friendly_parks",
+          subclassification:
+            dogAccess === "leashed" ? "Leash-required park" : "Dog-friendly park",
+          reason:
+            dogAccess === "leashed"
+              ? "Included because this park is mapped as allowing dogs on leash."
+              : "Included because this park is mapped as allowing dogs; local leash rules still apply.",
+          conditions: [
+            dogAccess === "leashed" ? "Leash required" : "Verify local leash rules",
+            "Not a dedicated dog park",
+          ],
+        },
+    provenance: {
+      label: SOURCE_LABELS.openstreetmap,
+      datasetId: osmId,
+      sourceUrl: `https://www.openstreetmap.org/${osmId}`,
+      note: isDedicatedDogPark
+        ? "Mapped as leisure=dog_park in OpenStreetMap."
+        : `Mapped as leisure=park with dog=${dogAccess} in OpenStreetMap.`,
+    },
+    rawData: {
+      id: osmId,
+      types: ["dog_park"],
+      access: cleanText(tags.access),
+      barrier: cleanText(tags.barrier),
+      operator: cleanText(tags.operator),
+      dog: dogAccess,
+    },
+  };
+
+  if (!isInsideBounds(point, bounds)) {
+    return undefined;
+  }
+
+  if (osmId === NISKAYUNA_DOG_PARK_OSM_ID) {
+    return {
+      ...point,
+      name: "Niskayuna Dog Park (Blatnick Park)",
+      source: "official_local",
+      address: "Jeff Blatnick Park, River Rd, Niskayuna, NY 12309",
+      sourceUrl: NISKAYUNA_DOG_PARK_SOURCE_URL,
+      provenance: {
+        label: SOURCE_LABELS.official_local,
+        datasetId: osmId,
+        sourceUrl: NISKAYUNA_DOG_PARK_SOURCE_URL,
+        note: "Town guidance locates the fenced dog park inside Blatnick Park behind the baseball fields.",
+      },
+      match: {
+        tier: "primary",
+        subclassification: "Dedicated dog park",
+        reason: "Town guidance verifies a dedicated fenced dog park inside Blatnick Park.",
+      },
+    };
+  }
+
+  if (osmId === COLONIE_DOG_PARK_OSM_ID) {
+    return {
+      ...point,
+      name: "Town of Colonie Dog Park",
+      address: "71 Schermerhorn Rd, Cohoes, NY 12047",
+      provenance: {
+        ...point.provenance,
+        note: "Mapped as leisure=dog_park inside Colonie Mohawk River Park.",
+      },
+      match: {
+        tier: "primary",
+        subclassification: "Dedicated dog park",
+        reason: "Mapped as a dedicated dog park inside Colonie Mohawk River Park.",
+      },
+    };
+  }
+
+  return point;
+}
+
+async function fetchOpenStreetMapDogParks(bounds) {
+  const query = `[out:json][timeout:8];(nwr["leisure"="dog_park"](${bounds.minLat},${bounds.minLng},${bounds.maxLat},${bounds.maxLng});nwr["leisure"="park"]["dog"~"^(yes|leashed)$"](${bounds.minLat},${bounds.minLng},${bounds.maxLat},${bounds.maxLng}););out center tags;`;
+
+  for (const endpoint of OVERPASS_URLS) {
+    try {
+      const url = new URL(endpoint);
+      url.searchParams.set("data", query);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "MapGap/2.0 service-point-search",
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`Overpass endpoint returned ${response.status}: ${url.origin}`);
+        continue;
+      }
+
+      const data = await response.json();
+      const points = (Array.isArray(data.elements) ? data.elements : [])
+        .map((element) => normalizeOsmDogPark(element, bounds))
+        .filter(Boolean)
+        .sort((left, right) => {
+          if (left.source === "official_local" && right.source !== "official_local") {
+            return -1;
+          }
+          if (right.source === "official_local" && left.source !== "official_local") {
+            return 1;
+          }
+          const tierPriority = { primary: 0, related: 1, fallback: 2 };
+          if (left.match?.tier !== right.match?.tier) {
+            return (tierPriority[left.match?.tier] ?? 3) - (tierPriority[right.match?.tier] ?? 3);
+          }
+          return left.name.localeCompare(right.name);
+        });
+
+      return {
+        points: dedupeServicePoints(points),
+        warnings: [],
+      };
+    } catch (error) {
+      console.warn(
+        `Overpass endpoint failed: ${new URL(endpoint).origin}`,
+        error instanceof Error ? error.name : "unknown_error",
+      );
+    }
+  }
+
+  return {
+    points: [],
+    warnings: ["OpenStreetMap dog-park search is temporarily unavailable."],
+  };
+}
+
+async function fetchDogParkServicePoints(bounds, query, activeExtensions) {
+  const osmResult = await fetchOpenStreetMapDogParks(bounds);
+
+  if (osmResult.points.length > 0) {
+    const points = osmResult.points.filter(
+      (point) => !point.match?.extensionId || activeExtensions.includes(point.match.extensionId),
+    );
+    const extendedCount = points.filter((point) => point.match?.extensionId).length;
+
+    return {
+      points,
+      warnings:
+        extendedCount > 0
+          ? [
+              `Extended with ${extendedCount} ${extendedCount === 1 ? "park" : "parks"} where mapped dog-access rules apply. Dedicated dog parks remain first.`,
+            ]
+          : [],
+    };
+  }
+
+  const googleResult = await fetchGoogleTextServicePoints({
+    category: "custom",
+    bounds,
+    maxResults: MAX_RESULTS,
+    query,
+  });
+
+  return {
+    points: googleResult.points,
+    warnings: [
+      ...osmResult.warnings,
+      ...googleResult.warnings,
+      "Showing explicit Google dog-park matches because mapped OpenStreetMap results were unavailable.",
+    ],
   };
 }
 
@@ -886,7 +1363,19 @@ function dedupeServicePoints(points) {
     }
   }
 
-  return Array.from(byKey.values()).sort((left, right) => left.name.localeCompare(right.name));
+  return Array.from(byKey.values()).sort((left, right) => {
+    const sourcePriority = {
+      official_local: 0,
+      openstreetmap: 1,
+    };
+    const leftPriority = sourcePriority[left.source] ?? 2;
+    const rightPriority = sourcePriority[right.source] ?? 2;
+    const tierPriority = { primary: 0, related: 1, fallback: 2 };
+    const leftTier = tierPriority[left.match?.tier] ?? 3;
+    const rightTier = tierPriority[right.match?.tier] ?? 3;
+
+    return leftTier - rightTier || leftPriority - rightPriority || left.name.localeCompare(right.name);
+  });
 }
 
 function responseSources(points) {
@@ -916,6 +1405,9 @@ export async function handler(event) {
     return json(400, { message: customQuery.error });
   }
 
+  const availableExtensions = extensionsFor(category, customQuery.query);
+  const activeExtensions = parseExtensions(params.include, availableExtensions);
+
   const bounds = parseBbox(params.bbox);
 
   if (!bounds) {
@@ -929,11 +1421,14 @@ export async function handler(event) {
   }
 
   const cacheKey = makeCacheKey("service-points", {
-    version: 2,
+    version: 4,
     category,
     query: category === "custom" ? customQuery.query : undefined,
+    activeExtensions,
     bounds,
     googleKeyConfigured: Boolean(getConfiguredSecret("GOOGLE_PLACES_API_KEY")),
+    overpassUrls:
+      category === "custom" && isDogParkQuery(customQuery.query) ? OVERPASS_URLS : undefined,
     nyUrl: NY_LIBRARY_URL,
     njUrl: process.env.NJ_LIBRARY_ARCGIS_URL || process.env.NJ_LIBRARIES_ARCGIS_URL || NJ_LIBRARY_ITEM_ID,
   });
@@ -960,11 +1455,14 @@ export async function handler(event) {
     const result =
       category === "library"
         ? await fetchLibraryServicePoints(bounds)
+        : category === "custom" && isDogParkQuery(customQuery.query)
+          ? await fetchDogParkServicePoints(bounds, customQuery.query, activeExtensions)
         : await fetchGoogleServicePoints({
             category,
             bounds,
             maxResults: MAX_RESULTS,
             query: category === "custom" ? customQuery.query : undefined,
+            activeExtensions,
           });
 
     const points = dedupeServicePoints(result.points).slice(0, MAX_RESULTS);
@@ -978,6 +1476,8 @@ export async function handler(event) {
       count: points.length,
       sources: responseSources(points),
       points,
+      extensions: availableExtensions,
+      activeExtensions,
       warnings: (result.warnings || []).filter(Boolean),
     };
     const stored = setCached(servicePointCache, cacheKey, payload, CACHE_TTL_MS);
