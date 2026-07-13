@@ -1,0 +1,14 @@
+{
+  "name": "@mapgap/project-contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Framework-neutral, versioned MapGap project contract shared by V2 and V3.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures.ts"
+  },
+  "files": [
+    "src"
+  ]
+}

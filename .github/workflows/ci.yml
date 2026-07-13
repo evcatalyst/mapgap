@@ -36,6 +36,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify V2 dependency isolation from V3
+        run: npm run check:v2-isolation
+
+      - name: Verify V2 artifact budget
+        run: npm run check:v2-budget
+
+      - name: Verify Kepler security fork evidence
+        run: npm run check:kepler-fork
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
@@ -58,6 +67,75 @@ jobs:
         with:
           name: mapgap-playwright-report
           path: playwright-report
+          if-no-files-found: ignore
+
+  v3-alpha:
+    name: V3 internal alpha checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/v3/package-lock.json
+
+      - name: Install isolated V3 dependencies
+        working-directory: apps/v3
+        run: npm ci
+
+      - name: Typecheck V3
+        working-directory: apps/v3
+        run: npm run typecheck
+
+      - name: Build V3 alpha
+        working-directory: apps/v3
+        run: npm run build
+
+      - name: Verify V3 deployment boundary
+        working-directory: apps/v3
+        run: npm run check:boundary
+
+      - name: Verify V3 internal-alpha audit disposition
+        working-directory: apps/v3
+        run: npm run audit:alpha
+
+      - name: Install V3 Playwright browser
+        working-directory: apps/v3
+        run: npx playwright install --with-deps chromium
+
+      - name: Run V3 project-contract and parity tests
+        working-directory: apps/v3
+        run: npm run test:contract
+
+      - name: Run V3 analyst workflow smoke tests
+        working-directory: apps/v3
+        run: npm run test:smoke
+
+      - name: Run V3 token-free style check
+        working-directory: apps/v3
+        run: npm run test:security
+
+      - name: Run V3 scale-policy checks
+        working-directory: apps/v3
+        run: npm run test:scale
+
+      - name: Upload V3 alpha artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mapgap-v3-alpha-dist
+          path: apps/v3/dist
+          if-no-files-found: error
+
+      - name: Upload V3 Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mapgap-v3-alpha-playwright-report
+          path: apps/v3/playwright-report
           if-no-files-found: ignore
 
   deploy-preview:

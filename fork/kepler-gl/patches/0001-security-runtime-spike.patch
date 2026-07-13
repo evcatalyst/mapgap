@@ -1,0 +1,1408 @@
+# Generated from keplergl/kepler.gl master 73af58e99e3971b89d556aab9a21814e6e6b31e7.
+# Regenerate yarn.lock with Yarn 4.4.0 after applying.
+diff --git a/package.json b/package.json
+index dfd9184..d3ef844 100644
+--- a/package.json
++++ b/package.json
+@@ -29,6 +29,7 @@
+     "./src/schemas",
+     "./src/cloud-providers",
+     "./src/processors",
++    "./src/task-runtime",
+     "./src/tasks",
+     "./src/actions",
+     "./src/effects",
+@@ -259,14 +260,15 @@
+     "browserslist": "^4.17.0",
+     "caniuse-lite": "^1.0.30001636",
+     "d3-array": "^2.8.0",
+-    "d3-scale": "^3.2.3",
++    "d3-scale": "^4.0.2",
+     "eslint-plugin-jest": "^27.2.1",
+     "dot-prop": "6.0.0",
+     "kind-of": "6.0.3",
+     "jpeg-js": "^0.4.3",
+     "lodash": "4.17.23",
+     "minimist": "1.2.6",
+-    "node-fetch": "2.6.1",
++    "node-fetch": "2.7.0",
++    "thrift": "0.23.0",
+     "tough-cookie": "4.0.0",
+     "sha.js": "2.4.12"
+   },
+diff --git a/src/actions/package.json b/src/actions/package.json
+index e8e2478..84fe6a5 100644
+--- a/src/actions/package.json
++++ b/src/actions/package.json
+@@ -43,7 +43,6 @@
+     "@types/react-redux": "^7.1.23",
+     "@types/redux-actions": "^2.6.2",
+     "lodash": "4.17.23",
+-    "react-palm": "^3.3.8",
+     "react-redux": "^8.0.5",
+     "redux": "^5.0.0",
+     "redux-actions": "^2.2.1"
+diff --git a/src/actions/src/action-types.ts b/src/actions/src/action-types.ts
+index 85fc702..1b039c1 100644
+--- a/src/actions/src/action-types.ts
++++ b/src/actions/src/action-types.ts
+@@ -13,7 +13,7 @@ export const ACTION_PREFIX = '@@kepler.gl/';
+  * // store.js
+  * import {handleActions} from 'redux-actions';
+  * import {createStore, combineReducers, applyMiddleware} from 'redux';
+- * import {taskMiddleware} from 'react-palm/tasks';
++ * import {taskMiddleware} from '@kepler.gl/task-runtime';
+  *
+  * import keplerGlReducer from '@kepler.gl/reducers';
+  * import {ActionTypes} from '@kepler.gl/actions';
+diff --git a/src/components/package.json b/src/components/package.json
+index 9d2ade9..7b8694f 100644
+--- a/src/components/package.json
++++ b/src/components/package.json
+@@ -84,10 +84,10 @@
+     "copy-to-clipboard": "^3.3.1",
+     "d3-array": "^2.8.0",
+     "d3-axis": "^2.0.0",
+-    "d3-brush": "^2.1.0",
+-    "d3-color": "^2.0.0",
++    "d3-brush": "^3.0.0",
++    "d3-color": "^3.1.0",
+     "d3-format": "^2.0.0",
+-    "d3-scale": "^3.2.3",
++    "d3-scale": "^4.0.2",
+     "d3-selection": "^2.0.0",
+     "exenv": "^1.2.2",
+     "fuzzy": "^0.1.3",
+diff --git a/src/constants/package.json b/src/constants/package.json
+index c536169..ea3b134 100644
+--- a/src/constants/package.json
++++ b/src/constants/package.json
+@@ -36,9 +36,9 @@
+     "chroma-js": "2.1.2",
+     "colorbrewer": "^1.5.0",
+     "d3-array": "^2.8.0",
+-    "d3-color": "^2.0.0",
+-    "d3-scale": "^3.2.3",
+-    "d3-scale-chromatic": "2.0.0",
++    "d3-color": "^3.1.0",
++    "d3-scale": "^4.0.2",
++    "d3-scale-chromatic": "^3.1.0",
+     "d3-time": "^2.0.0",
+     "global": "^4.3.0",
+     "keymirror": "^0.1.1"
+diff --git a/src/layers/package.json b/src/layers/package.json
+index e653cc6..8256cc0 100644
+--- a/src/layers/package.json
++++ b/src/layers/package.json
+@@ -76,7 +76,7 @@
+     "buffer": "6.0.3",
+     "d3-array": "^2.8.0",
+     "d3-format": "^3.1.0",
+-    "d3-interpolate": "^2.0.1",
++    "d3-interpolate": "^3.0.1",
+     "d3-shape": "^1.2.0",
+     "global": "^4.3.0",
+     "keymirror": "^0.1.1",
+diff --git a/src/reducers/package.json b/src/reducers/package.json
+index ea7431c..148b6b1 100644
+--- a/src/reducers/package.json
++++ b/src/reducers/package.json
+@@ -42,6 +42,7 @@
+     "@kepler.gl/processors": "3.3.0-alpha.1",
+     "@kepler.gl/schemas": "3.3.0-alpha.1",
+     "@kepler.gl/table": "3.3.0-alpha.1",
++    "@kepler.gl/task-runtime": "3.3.0-alpha.1",
+     "@kepler.gl/tasks": "3.3.0-alpha.1",
+     "@kepler.gl/types": "3.3.0-alpha.1",
+     "@kepler.gl/utils": "3.3.0-alpha.1",
+@@ -54,12 +55,11 @@
+     "@types/lodash": "4.17.5",
+     "@types/redux-actions": "^2.6.2",
+     "copy-to-clipboard": "^3.3.1",
+-    "d3-color": "^2.0.0",
++    "d3-color": "^3.1.0",
+     "d3-dsv": "^2.0.0",
+     "deepmerge": "^4.2.2",
+     "global": "^4.3.0",
+     "lodash": "4.17.23",
+-    "react-palm": "^3.3.8",
+     "redux": "^5.0.0",
+     "redux-actions": "^2.2.1",
+     "reselect": "^5.0.0"
+diff --git a/src/reducers/src/map-style-updaters.ts b/src/reducers/src/map-style-updaters.ts
+index b7d7b1f..b5f8326 100644
+--- a/src/reducers/src/map-style-updaters.ts
++++ b/src/reducers/src/map-style-updaters.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ // Copyright contributors to the kepler.gl project
+ 
+-import Task, {withTask} from 'react-palm/tasks';
++import Task, {withTask} from '@kepler.gl/task-runtime';
+ import cloneDeep from 'lodash/cloneDeep';
+ import Console from 'global/console';
+ 
+diff --git a/src/reducers/src/merger-handler.ts b/src/reducers/src/merger-handler.ts
+index 86b2e28..9c98f3d 100644
+--- a/src/reducers/src/merger-handler.ts
++++ b/src/reducers/src/merger-handler.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ // Copyright contributors to the kepler.gl project
+ 
+-import {getGlobalTaskQueue} from 'react-palm/tasks';
++import {getGlobalTaskQueue} from '@kepler.gl/task-runtime';
+ import {isObject} from '@kepler.gl/utils';
+ import {toArray} from '@kepler.gl/common-utils';
+ import {ValueOf} from '@kepler.gl/types';
+diff --git a/src/reducers/src/middleware.ts b/src/reducers/src/middleware.ts
+index e6ec5f6..962868e 100644
+--- a/src/reducers/src/middleware.ts
++++ b/src/reducers/src/middleware.ts
+@@ -4,7 +4,7 @@
+ // Extra helpers for redux
+ // We are exposing this secause react-palm has no UMD module and
+ // users need taskMiddleware to initiate their redux middle ware
+-import {taskMiddleware} from 'react-palm/tasks';
++import {taskMiddleware} from '@kepler.gl/task-runtime';
+ import {Middleware} from 'redux';
+ 
+ /**
+diff --git a/src/reducers/src/provider-state-updaters.ts b/src/reducers/src/provider-state-updaters.ts
+index b4cedeb..8a62097 100644
+--- a/src/reducers/src/provider-state-updaters.ts
++++ b/src/reducers/src/provider-state-updaters.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ // Copyright contributors to the kepler.gl project
+ 
+-import Task, {withTask} from 'react-palm/tasks';
++import Task, {withTask} from '@kepler.gl/task-runtime';
+ import Console from 'global/console';
+ import {getApplicationConfig, getError, isPlainObject} from '@kepler.gl/utils';
+ import {generateHashId, toArray} from '@kepler.gl/common-utils';
+diff --git a/src/reducers/src/root.ts b/src/reducers/src/root.ts
+index 0ae183f..af9cc0b 100644
+--- a/src/reducers/src/root.ts
++++ b/src/reducers/src/root.ts
+@@ -231,7 +231,7 @@ function decorate(target, savedInitialState = {}) {
+  * @example
+  * import keplerGlReducer from '@kepler.gl/reducers';
+  * import {createStore, combineReducers, applyMiddleware, compose} from 'redux';
+- * import {taskMiddleware} from 'react-palm/tasks';
++ * import {taskMiddleware} from '@kepler.gl/task-runtime';
+  *
+  * const initialState = {};
+  * const reducers = combineReducers({
+diff --git a/src/reducers/src/vis-state-updaters.ts b/src/reducers/src/vis-state-updaters.ts
+index 6813613..b3d9382 100644
+--- a/src/reducers/src/vis-state-updaters.ts
++++ b/src/reducers/src/vis-state-updaters.ts
+@@ -11,7 +11,7 @@ import isEqual from 'lodash/isEqual';
+ import pick from 'lodash/pick';
+ import uniq from 'lodash/uniq';
+ import xor from 'lodash/xor';
+-import Task, {disableStackCapturing, withTask} from 'react-palm/tasks';
++import Task, {disableStackCapturing, withTask} from '@kepler.gl/task-runtime';
+ // Tasks
+ import {
+   DELAY_TASK,
+diff --git a/src/table/package.json b/src/table/package.json
+index 6d0cf6c..fe27ce7 100644
+--- a/src/table/package.json
++++ b/src/table/package.json
+@@ -32,6 +32,7 @@
+   "dependencies": {
+     "@kepler.gl/common-utils": "3.3.0-alpha.1",
+     "@kepler.gl/constants": "3.3.0-alpha.1",
++    "@kepler.gl/task-runtime": "3.3.0-alpha.1",
+     "@kepler.gl/types": "3.3.0-alpha.1",
+     "@kepler.gl/utils": "3.3.0-alpha.1",
+     "@loaders.gl/mvt": "^4.4.1",
+@@ -42,7 +43,6 @@
+     "global": "^4.3.0",
+     "lodash": "4.17.23",
+     "moment": "^2.10.6",
+-    "react-palm": "^3.3.8",
+     "type-analyzer": "0.4.0"
+   },
+   "nyc": {
+diff --git a/src/table/src/dataset-utils.ts b/src/table/src/dataset-utils.ts
+index b317f71..4da5b0d 100644
+--- a/src/table/src/dataset-utils.ts
++++ b/src/table/src/dataset-utils.ts
+@@ -4,7 +4,7 @@
+ import uniq from 'lodash/uniq';
+ import KeplerTable, {Datasets} from './kepler-table';
+ import {ProtoDataset, RGBColor} from '@kepler.gl/types';
+-import Task from 'react-palm/tasks';
++import Task from '@kepler.gl/task-runtime';
+ 
+ import {
+   DatasetType,
+diff --git a/src/tasks/package.json b/src/tasks/package.json
+index 9d98ff6..7077b1e 100644
+--- a/src/tasks/package.json
++++ b/src/tasks/package.json
+@@ -31,7 +31,7 @@
+   ],
+   "dependencies": {
+     "@kepler.gl/processors": "3.3.0-alpha.1",
+-    "react-palm": "^3.3.8"
++    "@kepler.gl/task-runtime": "3.3.0-alpha.1"
+   },
+   "nyc": {
+     "sourceMap": false,
+diff --git a/src/tasks/src/index.ts b/src/tasks/src/index.ts
+index 9fbe5c9..b8f0f12 100644
+--- a/src/tasks/src/index.ts
++++ b/src/tasks/src/index.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ // Copyright contributors to the kepler.gl project
+ 
+-import Task, {taskCreator} from 'react-palm/tasks';
++import Task, {taskCreator} from '@kepler.gl/task-runtime';
+ import {readFileInBatches, processFileData} from '@kepler.gl/processors';
+ 
+ export const LOAD_FILE_TASK = Task.fromPromise(
+diff --git a/src/utils/package.json b/src/utils/package.json
+index 85944e9..0f8d094 100644
+--- a/src/utils/package.json
++++ b/src/utils/package.json
+@@ -45,9 +45,9 @@
+     "@types/lodash": "4.17.5",
+     "apache-arrow": ">=15.0.0",
+     "d3-array": "^2.8.0",
+-    "d3-color": "^2.0.0",
++    "d3-color": "^3.1.0",
+     "d3-format": "^2.0.0",
+-    "d3-interpolate": "^2.0.1",
++    "d3-interpolate": "^3.0.1",
+     "decimal.js": "^10.2.0",
+     "global": "^4.3.0",
+     "h3-js": "^3.1.0",
+diff --git a/test/browser/components/kepler-gl-test.js b/test/browser/components/kepler-gl-test.js
+index 26a6489..cee48eb 100644
+--- a/test/browser/components/kepler-gl-test.js
++++ b/test/browser/components/kepler-gl-test.js
+@@ -5,7 +5,7 @@ import React from 'react';
+ import test from 'tape';
+ import {mount} from 'enzyme';
+ import sinon from 'sinon';
+-import {drainTasksForTesting, succeedTaskWithValues} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskWithValues} from '@kepler.gl/task-runtime';
+ import configureStore from 'redux-mock-store';
+ import {Provider} from 'react-redux';
+ 
+diff --git a/test/helpers/mock-state-utils.js b/test/helpers/mock-state-utils.js
+index 1382b1e..d9db514 100644
+--- a/test/helpers/mock-state-utils.js
++++ b/test/helpers/mock-state-utils.js
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: MIT
+ // Copyright contributors to the kepler.gl project
+ 
+-import {drainTasksForTesting, succeedTaskWithValues} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskWithValues} from '@kepler.gl/task-runtime';
+ 
+ import {KeplerTable} from '@kepler.gl/table';
+ 
+diff --git a/test/node/reducers/composer-state-test.js b/test/node/reducers/composer-state-test.js
+index ece4c36..afbd3fd 100644
+--- a/test/node/reducers/composer-state-test.js
++++ b/test/node/reducers/composer-state-test.js
+@@ -3,7 +3,7 @@
+ 
+ /* eslint-disable max-statements */
+ 
+-import {drainTasksForTesting, succeedTaskWithValues} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskWithValues} from '@kepler.gl/task-runtime';
+ import test from 'tape';
+ 
+ import {registerEntry} from '@kepler.gl/actions';
+diff --git a/test/node/reducers/map-style-test.js b/test/node/reducers/map-style-test.js
+index 2703db5..80809a2 100644
+--- a/test/node/reducers/map-style-test.js
++++ b/test/node/reducers/map-style-test.js
+@@ -2,7 +2,7 @@
+ // Copyright contributors to the kepler.gl project
+ 
+ import test from 'tape';
+-import {drainTasksForTesting, succeedTaskWithValues, errorTaskInTest} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskWithValues, errorTaskInTest} from '@kepler.gl/task-runtime';
+ 
+ import {
+   mapStyleReducer as reducer,
+diff --git a/test/node/reducers/provider-state-test.js b/test/node/reducers/provider-state-test.js
+index 97f0670..7cfb60b 100644
+--- a/test/node/reducers/provider-state-test.js
++++ b/test/node/reducers/provider-state-test.js
+@@ -2,7 +2,7 @@
+ // Copyright contributors to the kepler.gl project
+ 
+ import test from 'tape';
+-import {drainTasksForTesting, succeedTaskInTest, errorTaskInTest} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskInTest, errorTaskInTest} from '@kepler.gl/task-runtime';
+ import sinon from 'sinon';
+ import {default as Console} from 'global/console';
+ 
+diff --git a/test/node/reducers/vis-state-merger-test.js b/test/node/reducers/vis-state-merger-test.js
+index 8a0f0b1..823876c 100644
+--- a/test/node/reducers/vis-state-merger-test.js
++++ b/test/node/reducers/vis-state-merger-test.js
+@@ -3,7 +3,7 @@
+ 
+ import test from 'tape';
+ import cloneDeep from 'lodash/cloneDeep';
+-import Task, {withTask, drainTasksForTesting, succeedTaskInTest} from 'react-palm/tasks';
++import Task, {withTask, drainTasksForTesting, succeedTaskInTest} from '@kepler.gl/task-runtime';
+ import CloneDeep from 'lodash/cloneDeep';
+ 
+ import keplerGlReducer, {
+diff --git a/test/node/reducers/vis-state-test.js b/test/node/reducers/vis-state-test.js
+index 994659e..b64314e 100644
+--- a/test/node/reducers/vis-state-test.js
++++ b/test/node/reducers/vis-state-test.js
+@@ -6,7 +6,7 @@ import test from 'tape-catch';
+ import sinon from 'sinon';
+ import {console as Console} from 'global/window';
+ 
+-import {drainTasksForTesting, succeedTaskInTest, errorTaskInTest} from 'react-palm/tasks';
++import {drainTasksForTesting, succeedTaskInTest, errorTaskInTest} from '@kepler.gl/task-runtime';
+ import CloneDeep from 'lodash/cloneDeep';
+ 
+ import SchemaManager from '@kepler.gl/schemas';
+diff --git a/yarn.lock b/yarn.lock
+index 792e065..ed855f3 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -5177,7 +5177,6 @@ __metadata:
+     "@types/react-redux": "npm:^7.1.23"
+     "@types/redux-actions": "npm:^2.6.2"
+     lodash: "npm:4.17.23"
+-    react-palm: "npm:^3.3.8"
+     react-redux: "npm:^8.0.5"
+     redux: "npm:^5.0.0"
+     redux-actions: "npm:^2.2.1"
+@@ -5295,10 +5294,10 @@ __metadata:
+     copy-to-clipboard: "npm:^3.3.1"
+     d3-array: "npm:^2.8.0"
+     d3-axis: "npm:^2.0.0"
+-    d3-brush: "npm:^2.1.0"
+-    d3-color: "npm:^2.0.0"
++    d3-brush: "npm:^3.0.0"
++    d3-color: "npm:^3.1.0"
+     d3-format: "npm:^2.0.0"
+-    d3-scale: "npm:^3.2.3"
++    d3-scale: "npm:^4.0.2"
+     d3-selection: "npm:^2.0.0"
+     exenv: "npm:^1.2.2"
+     fuzzy: "npm:^0.1.3"
+@@ -5367,9 +5366,9 @@ __metadata:
+     chroma-js: "npm:2.1.2"
+     colorbrewer: "npm:^1.5.0"
+     d3-array: "npm:^2.8.0"
+-    d3-color: "npm:^2.0.0"
+-    d3-scale: "npm:^3.2.3"
+-    d3-scale-chromatic: "npm:2.0.0"
++    d3-color: "npm:^3.1.0"
++    d3-scale: "npm:^4.0.2"
++    d3-scale-chromatic: "npm:^3.1.0"
+     d3-time: "npm:^2.0.0"
+     global: "npm:^4.3.0"
+     keymirror: "npm:^0.1.1"
+@@ -5516,7 +5515,7 @@ __metadata:
+     buffer: "npm:6.0.3"
+     d3-array: "npm:^2.8.0"
+     d3-format: "npm:^3.1.0"
+-    d3-interpolate: "npm:^2.0.1"
++    d3-interpolate: "npm:^3.0.1"
+     d3-shape: "npm:^1.2.0"
+     global: "npm:^4.3.0"
+     keymirror: "npm:^0.1.1"
+@@ -5588,6 +5587,7 @@ __metadata:
+     "@kepler.gl/processors": "npm:3.3.0-alpha.1"
+     "@kepler.gl/schemas": "npm:3.3.0-alpha.1"
+     "@kepler.gl/table": "npm:3.3.0-alpha.1"
++    "@kepler.gl/task-runtime": "npm:3.3.0-alpha.1"
+     "@kepler.gl/tasks": "npm:3.3.0-alpha.1"
+     "@kepler.gl/types": "npm:3.3.0-alpha.1"
+     "@kepler.gl/utils": "npm:3.3.0-alpha.1"
+@@ -5600,12 +5600,11 @@ __metadata:
+     "@types/lodash": "npm:4.17.5"
+     "@types/redux-actions": "npm:^2.6.2"
+     copy-to-clipboard: "npm:^3.3.1"
+-    d3-color: "npm:^2.0.0"
++    d3-color: "npm:^3.1.0"
+     d3-dsv: "npm:^2.0.0"
+     deepmerge: "npm:^4.2.2"
+     global: "npm:^4.3.0"
+     lodash: "npm:4.17.23"
+-    react-palm: "npm:^3.3.8"
+     redux: "npm:^5.0.0"
+     redux-actions: "npm:^2.2.1"
+     reselect: "npm:^5.0.0"
+@@ -5648,6 +5647,7 @@ __metadata:
+   dependencies:
+     "@kepler.gl/common-utils": "npm:3.3.0-alpha.1"
+     "@kepler.gl/constants": "npm:3.3.0-alpha.1"
++    "@kepler.gl/task-runtime": "npm:3.3.0-alpha.1"
+     "@kepler.gl/types": "npm:3.3.0-alpha.1"
+     "@kepler.gl/utils": "npm:3.3.0-alpha.1"
+     "@loaders.gl/mvt": "npm:^4.4.1"
+@@ -5658,17 +5658,22 @@ __metadata:
+     global: "npm:^4.3.0"
+     lodash: "npm:4.17.23"
+     moment: "npm:^2.10.6"
+-    react-palm: "npm:^3.3.8"
+     type-analyzer: "npm:0.4.0"
+   languageName: unknown
+   linkType: soft
+ 
++"@kepler.gl/task-runtime@npm:3.3.0-alpha.1, @kepler.gl/task-runtime@workspace:src/task-runtime":
++  version: 0.0.0-use.local
++  resolution: "@kepler.gl/task-runtime@workspace:src/task-runtime"
++  languageName: unknown
++  linkType: soft
++
+ "@kepler.gl/tasks@npm:3.3.0-alpha.1, @kepler.gl/tasks@workspace:src/tasks":
+   version: 0.0.0-use.local
+   resolution: "@kepler.gl/tasks@workspace:src/tasks"
+   dependencies:
+     "@kepler.gl/processors": "npm:3.3.0-alpha.1"
+-    react-palm: "npm:^3.3.8"
++    "@kepler.gl/task-runtime": "npm:3.3.0-alpha.1"
+   languageName: unknown
+   linkType: soft
+ 
+@@ -5704,9 +5709,9 @@ __metadata:
+     "@types/lodash": "npm:4.17.5"
+     apache-arrow: "npm:>=15.0.0"
+     d3-array: "npm:^2.8.0"
+-    d3-color: "npm:^2.0.0"
++    d3-color: "npm:^3.1.0"
+     d3-format: "npm:^2.0.0"
+-    d3-interpolate: "npm:^2.0.1"
++    d3-interpolate: "npm:^3.0.1"
+     decimal.js: "npm:^10.2.0"
+     global: "npm:^4.3.0"
+     h3-js: "npm:^3.1.0"
+@@ -12420,13 +12425,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"asap@npm:~2.0.3":
+-  version: 2.0.6
+-  resolution: "asap@npm:2.0.6"
+-  checksum: 10c0/c6d5e39fe1f15e4b87677460bd66b66050cd14c772269cee6688824c1410a08ab20254bb6784f9afb75af9144a9f9a7692d49547f4d19d715aeb7c0318f3136d
+-  languageName: node
+-  linkType: hard
+-
+ "asn1.js@npm:^4.10.1":
+   version: 4.10.1
+   resolution: "asn1.js@npm:4.10.1"
+@@ -14701,13 +14699,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"core-js@npm:^1.0.0":
+-  version: 1.2.7
+-  resolution: "core-js@npm:1.2.7"
+-  checksum: 10c0/2b2966e40833f522129da4cc979688760654e9b38e32b06517a94c0edf2882d8990c4b1b0087cb2abfbe6219fdb21dc64343fa264a6b6280ec88c3682b8eee66
+-  languageName: node
+-  linkType: hard
+-
+ "core-js@npm:^2.4.0, core-js@npm:^2.6.5":
+   version: 2.6.12
+   resolution: "core-js@npm:2.6.12"
+@@ -15057,16 +15048,16 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-brush@npm:^2.1.0":
+-  version: 2.1.0
+-  resolution: "d3-brush@npm:2.1.0"
++"d3-brush@npm:^3.0.0":
++  version: 3.0.0
++  resolution: "d3-brush@npm:3.0.0"
+   dependencies:
+-    d3-dispatch: "npm:1 - 2"
+-    d3-drag: "npm:2"
+-    d3-interpolate: "npm:1 - 2"
+-    d3-selection: "npm:2"
+-    d3-transition: "npm:2"
+-  checksum: 10c0/f4221f815f8b0fb5af42a2c5baf7cb884067fdddfe5e3d9ae8b603912a47c205e138b8cdcb19a693feac46aa790c0dc9204c893e4b09cfdb944d31bde0b81126
++    d3-dispatch: "npm:1 - 3"
++    d3-drag: "npm:2 - 3"
++    d3-interpolate: "npm:1 - 3"
++    d3-selection: "npm:3"
++    d3-transition: "npm:3"
++  checksum: 10c0/07baf00334c576da2f68a91fc0da5732c3a5fa19bd3d7aed7fd24d1d674a773f71a93e9687c154176f7246946194d77c48c2d8fed757f5dcb1a4740067ec50a8
+   languageName: node
+   linkType: hard
+ 
+@@ -15084,20 +15075,20 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-dispatch@npm:1 - 2":
+-  version: 2.0.0
+-  resolution: "d3-dispatch@npm:2.0.0"
+-  checksum: 10c0/379f7ce1510f529da00a34016630e92e41c0f6bbffef7b849f4e46733c188c67418df266a9a541cda17572b5286e32fbaf66308fe04dcfe52aa551830825bc93
++"d3-dispatch@npm:1 - 3":
++  version: 3.0.1
++  resolution: "d3-dispatch@npm:3.0.1"
++  checksum: 10c0/6eca77008ce2dc33380e45d4410c67d150941df7ab45b91d116dbe6d0a3092c0f6ac184dd4602c796dc9e790222bad3ff7142025f5fd22694efe088d1d941753
+   languageName: node
+   linkType: hard
+ 
+-"d3-drag@npm:2":
+-  version: 2.0.0
+-  resolution: "d3-drag@npm:2.0.0"
++"d3-drag@npm:2 - 3":
++  version: 3.0.0
++  resolution: "d3-drag@npm:3.0.0"
+   dependencies:
+-    d3-dispatch: "npm:1 - 2"
+-    d3-selection: "npm:2"
+-  checksum: 10c0/a6f2cfea47aa888b56476454554b37befb0d332f326704913142c6a89b295edfc0947a9fb5afdd0c6d0028878b832a975c80df55d009ab7ccf7b59faa99e926c
++    d3-dispatch: "npm:1 - 3"
++    d3-selection: "npm:3"
++  checksum: 10c0/d2556e8dc720741a443b595a30af403dd60642dfd938d44d6e9bfc4c71a962142f9a028c56b61f8b4790b65a34acad177d1263d66f103c3c527767b0926ef5aa
+   languageName: node
+   linkType: hard
+ 
+@@ -15143,27 +15134,27 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-ease@npm:1 - 2":
+-  version: 2.0.0
+-  resolution: "d3-ease@npm:2.0.0"
+-  checksum: 10c0/4c2e74417739b73f5d185675be0a72b19df1f729b87c457d4b13976f7eef5c1f54739b4ccd71d9730521c959cfac28a56f5f4040dd2baf5729ac7e4adce344f1
+-  languageName: node
+-  linkType: hard
+-
+-"d3-format@npm:1 - 2, d3-format@npm:^2.0.0":
+-  version: 2.0.0
+-  resolution: "d3-format@npm:2.0.0"
+-  checksum: 10c0/c869af459e20767dc3d9cbb2946ba79cc266ae4fb35d11c50c63fc89ea4ed168c702c7e3db94d503b3618de9609bf3bf2d855ef53e21109ddd7eb9c8f3fcf8a1
++"d3-ease@npm:1 - 3":
++  version: 3.0.1
++  resolution: "d3-ease@npm:3.0.1"
++  checksum: 10c0/fec8ef826c0cc35cda3092c6841e07672868b1839fcaf556e19266a3a37e6bc7977d8298c0fcb9885e7799bfdcef7db1baaba9cd4dcf4bc5e952cf78574a88b0
+   languageName: node
+   linkType: hard
+ 
+-"d3-format@npm:^3.1.0":
++"d3-format@npm:1 - 3, d3-format@npm:^3.1.0":
+   version: 3.1.2
+   resolution: "d3-format@npm:3.1.2"
+   checksum: 10c0/0de452ae07585238e7f01607a7e0066665c34609652188b6ac7dc9f424f69465a425e07d16d79bd0e5955202ac7f241c66d0c76f68a79fc6f4857c94cf420652
+   languageName: node
+   linkType: hard
+ 
++"d3-format@npm:^2.0.0":
++  version: 2.0.0
++  resolution: "d3-format@npm:2.0.0"
++  checksum: 10c0/c869af459e20767dc3d9cbb2946ba79cc266ae4fb35d11c50c63fc89ea4ed168c702c7e3db94d503b3618de9609bf3bf2d855ef53e21109ddd7eb9c8f3fcf8a1
++  languageName: node
++  linkType: hard
++
+ "d3-geo@npm:1.7.1":
+   version: 1.7.1
+   resolution: "d3-geo@npm:1.7.1"
+@@ -15189,7 +15180,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-interpolate@npm:1 - 2, d3-interpolate@npm:1.2.0 - 2, d3-interpolate@npm:^2.0.1":
++"d3-interpolate@npm:1 - 2":
+   version: 2.0.1
+   resolution: "d3-interpolate@npm:2.0.1"
+   dependencies:
+@@ -15198,7 +15189,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-interpolate@npm:1 - 3, d3-interpolate@npm:^3.0.1":
++"d3-interpolate@npm:1 - 3, d3-interpolate@npm:1.2.0 - 3, d3-interpolate@npm:^3.0.1":
+   version: 3.0.1
+   resolution: "d3-interpolate@npm:3.0.1"
+   dependencies:
+@@ -15234,20 +15225,27 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-scale@npm:^3.2.3":
+-  version: 3.3.0
+-  resolution: "d3-scale@npm:3.3.0"
++"d3-scale@npm:^4.0.2":
++  version: 4.0.2
++  resolution: "d3-scale@npm:4.0.2"
+   dependencies:
+-    d3-array: "npm:^2.3.0"
+-    d3-format: "npm:1 - 2"
+-    d3-interpolate: "npm:1.2.0 - 2"
+-    d3-time: "npm:^2.1.1"
+-    d3-time-format: "npm:2 - 3"
+-  checksum: 10c0/cb63c271ec9c5b632c245c63e0d0716b32adcc468247972c552f5be62fb34a17f71e4ac29fd8976704369f4b958bc6789c61a49427efe2160ae979d7843569dc
++    d3-array: "npm:2.10.0 - 3"
++    d3-format: "npm:1 - 3"
++    d3-interpolate: "npm:1.2.0 - 3"
++    d3-time: "npm:2.1.1 - 3"
++    d3-time-format: "npm:2 - 4"
++  checksum: 10c0/65d9ad8c2641aec30ed5673a7410feb187a224d6ca8d1a520d68a7d6eac9d04caedbff4713d1e8545be33eb7fec5739983a7ab1d22d4e5ad35368c6729d362f1
+   languageName: node
+   linkType: hard
+ 
+-"d3-selection@npm:2, d3-selection@npm:^2.0.0":
++"d3-selection@npm:3":
++  version: 3.0.0
++  resolution: "d3-selection@npm:3.0.0"
++  checksum: 10c0/e59096bbe8f0cb0daa1001d9bdd6dbc93a688019abc97d1d8b37f85cd3c286a6875b22adea0931b0c88410d025563e1643019161a883c516acf50c190a11b56b
++  languageName: node
++  linkType: hard
++
++"d3-selection@npm:^2.0.0":
+   version: 2.0.0
+   resolution: "d3-selection@npm:2.0.0"
+   checksum: 10c0/cd38f5e0baf2011f421e909ff5748235b18510175b7433ddddb04df325a4a03d7db07da09993afb464d5f050174c13cb5d843da902e71e3e8eb5f06c28fc8689
+@@ -15263,16 +15261,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-time-format@npm:2 - 3":
+-  version: 3.0.0
+-  resolution: "d3-time-format@npm:3.0.0"
+-  dependencies:
+-    d3-time: "npm:1 - 2"
+-  checksum: 10c0/0abe3379f07d1c12ce8930cdddad1223c99cd3e4eac05cf409b5a7953e9ebed56a95a64b0977f63958cfb6101fa4a2a85533a5eae40df84f22c0117dbf5e8982
+-  languageName: node
+-  linkType: hard
+-
+-"d3-time-format@npm:^4.1.0":
++"d3-time-format@npm:2 - 4, d3-time-format@npm:^4.1.0":
+   version: 4.1.0
+   resolution: "d3-time-format@npm:4.1.0"
+   dependencies:
+@@ -15281,16 +15270,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-time@npm:1 - 2, d3-time@npm:^2.0.0, d3-time@npm:^2.1.1":
+-  version: 2.1.1
+-  resolution: "d3-time@npm:2.1.1"
+-  dependencies:
+-    d3-array: "npm:2"
+-  checksum: 10c0/4a01770a857bc37d2bafb8f00250e0e6a1fcc8051aea93e5eed168d8ee93e92da508a75ab5e42fc5472aa37e2a83aac68afaf3f12d9167c184ce781faadf5682
+-  languageName: node
+-  linkType: hard
+-
+-"d3-time@npm:1 - 3, d3-time@npm:^3.1.0":
++"d3-time@npm:1 - 3, d3-time@npm:2.1.1 - 3, d3-time@npm:^3.1.0":
+   version: 3.1.0
+   resolution: "d3-time@npm:3.1.0"
+   dependencies:
+@@ -15299,25 +15279,34 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"d3-timer@npm:1 - 2":
+-  version: 2.0.0
+-  resolution: "d3-timer@npm:2.0.0"
+-  checksum: 10c0/95f92ed8edbd0844c023de543ebca4d6aba7f9f8b2ecdbc3d61e01e4df5e74ffbce81238a3c4fd63d118bb1d05ca6331522df565fab146a2790e5c6a847f6275
++"d3-time@npm:^2.0.0":
++  version: 2.1.1
++  resolution: "d3-time@npm:2.1.1"
++  dependencies:
++    d3-array: "npm:2"
++  checksum: 10c0/4a01770a857bc37d2bafb8f00250e0e6a1fcc8051aea93e5eed168d8ee93e92da508a75ab5e42fc5472aa37e2a83aac68afaf3f12d9167c184ce781faadf5682
+   languageName: node
+   linkType: hard
+ 
+-"d3-transition@npm:2":
+-  version: 2.0.0
+-  resolution: "d3-transition@npm:2.0.0"
++"d3-timer@npm:1 - 3":
++  version: 3.0.1
++  resolution: "d3-timer@npm:3.0.1"
++  checksum: 10c0/d4c63cb4bb5461d7038aac561b097cd1c5673969b27cbdd0e87fa48d9300a538b9e6f39b4a7f0e3592ef4f963d858c8a9f0e92754db73116770856f2fc04561a
++  languageName: node
++  linkType: hard
++
++"d3-transition@npm:3":
++  version: 3.0.1
++  resolution: "d3-transition@npm:3.0.1"
+   dependencies:
+-    d3-color: "npm:1 - 2"
+-    d3-dispatch: "npm:1 - 2"
+-    d3-ease: "npm:1 - 2"
+-    d3-interpolate: "npm:1 - 2"
+-    d3-timer: "npm:1 - 2"
++    d3-color: "npm:1 - 3"
++    d3-dispatch: "npm:1 - 3"
++    d3-ease: "npm:1 - 3"
++    d3-interpolate: "npm:1 - 3"
++    d3-timer: "npm:1 - 3"
+   peerDependencies:
+-    d3-selection: 2
+-  checksum: 10c0/a775365c90acfcf5745fb18146ce0a5cb71bfdf69433f4d12cc286da0f88b3b1fbdd6782ccfe8e60de95133107cd8a47a4736fa19e94ffb08f1000e6cd9ebdb6
++    d3-selection: 2 - 3
++  checksum: 10c0/4e74535dda7024aa43e141635b7522bb70cf9d3dfefed975eb643b36b864762eca67f88fafc2ca798174f83ca7c8a65e892624f824b3f65b8145c6a1a88dbbad
+   languageName: node
+   linkType: hard
+ 
+@@ -17722,21 +17711,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"fbjs@npm:^0.8.16":
+-  version: 0.8.18
+-  resolution: "fbjs@npm:0.8.18"
+-  dependencies:
+-    core-js: "npm:^1.0.0"
+-    isomorphic-fetch: "npm:^2.1.1"
+-    loose-envify: "npm:^1.0.0"
+-    object-assign: "npm:^4.1.0"
+-    promise: "npm:^7.1.1"
+-    setimmediate: "npm:^1.0.5"
+-    ua-parser-js: "npm:^0.7.30"
+-  checksum: 10c0/a7e1c64c349cde000e5d94ce0289c59b725a95fbdacc22529155c4dacea1dde37a4dae7e16f0f6602dca566f15978b42acd7ee973b620eaac612b5228687ffe0
+-  languageName: node
+-  linkType: hard
+-
+ "fd-slicer@npm:~1.1.0":
+   version: 1.1.0
+   resolution: "fd-slicer@npm:1.1.0"
+@@ -18324,7 +18298,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"function.prototype.name@npm:^1.1.0, function.prototype.name@npm:^1.1.5, function.prototype.name@npm:^1.1.6":
++"function.prototype.name@npm:^1.1.5, function.prototype.name@npm:^1.1.6":
+   version: 1.1.6
+   resolution: "function.prototype.name@npm:1.1.6"
+   dependencies:
+@@ -20785,16 +20759,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"isomorphic-fetch@npm:^2.1.1":
+-  version: 2.2.1
+-  resolution: "isomorphic-fetch@npm:2.2.1"
+-  dependencies:
+-    node-fetch: "npm:^1.0.1"
+-    whatwg-fetch: "npm:>=0.10.0"
+-  checksum: 10c0/ea9fd37d31ec7b35b82180e1946d4a2f512506d0559fa567ec6ee6701ff1c6d924be90e75499c50982274b707e03ecd9eaa21d618872dd0deff530e4c3bdb074
+-  languageName: node
+-  linkType: hard
+-
+ "isomorphic-ws@npm:^4.0.1":
+   version: 4.0.1
+   resolution: "isomorphic-ws@npm:4.0.1"
+@@ -22372,7 +22336,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"loose-envify@npm:^1.0.0, loose-envify@npm:^1.1.0, loose-envify@npm:^1.4.0":
++"loose-envify@npm:^1.0.0, loose-envify@npm:^1.4.0":
+   version: 1.4.0
+   resolution: "loose-envify@npm:1.4.0"
+   dependencies:
+@@ -24259,10 +24223,17 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"node-fetch@npm:2.6.1":
+-  version: 2.6.1
+-  resolution: "node-fetch@npm:2.6.1"
+-  checksum: 10c0/c58586d121782df045681e29608f940be90c7d8c4cada29957c148cfcc5e2d81d74b690cf10ee6879ed055da7ea821450a74ff43f3bde651cf6c8a5f34a77e2a
++"node-fetch@npm:2.7.0":
++  version: 2.7.0
++  resolution: "node-fetch@npm:2.7.0"
++  dependencies:
++    whatwg-url: "npm:^5.0.0"
++  peerDependencies:
++    encoding: ^0.1.0
++  peerDependenciesMeta:
++    encoding:
++      optional: true
++  checksum: 10c0/b55786b6028208e6fbe594ccccc213cab67a72899c9234eb59dba51062a299ea853210fcf526998eaa2867b0963ad72338824450905679ff0fa304b8c5093ae8
+   languageName: node
+   linkType: hard
+ 
+@@ -26118,15 +26089,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"promise@npm:^7.1.1":
+-  version: 7.3.1
+-  resolution: "promise@npm:7.3.1"
+-  dependencies:
+-    asap: "npm:~2.0.3"
+-  checksum: 10c0/742e5c0cc646af1f0746963b8776299701ad561ce2c70b49365d62c8db8ea3681b0a1bf0d4e2fe07910bf72f02d39e51e8e73dc8d7503c3501206ac908be107f
+-  languageName: node
+-  linkType: hard
+-
+ "prompts@npm:^2.0.1":
+   version: 2.4.2
+   resolution: "prompts@npm:2.4.2"
+@@ -26623,20 +26585,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"react-dom@npm:^16.4.2":
+-  version: 16.14.0
+-  resolution: "react-dom@npm:16.14.0"
+-  dependencies:
+-    loose-envify: "npm:^1.1.0"
+-    object-assign: "npm:^4.1.1"
+-    prop-types: "npm:^15.6.2"
+-    scheduler: "npm:^0.19.1"
+-  peerDependencies:
+-    react: ^16.14.0
+-  checksum: 10c0/ca146e780631672a2d57c8d77775d38f394a6cd67db30c6af7964d0b3574ef7edccb1de8d592e990b98f4f5f8d1c8460b0691f04e7a45799962a51dcbaaa1371
+-  languageName: node
+-  linkType: hard
+-
+ "react-dom@npm:^19.0.0":
+   version: 19.2.7
+   resolution: "react-dom@npm:19.2.7"
+@@ -26724,7 +26672,7 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"react-is@npm:^16.13.1, react-is@npm:^16.7.0, react-is@npm:^16.8.6":
++"react-is@npm:^16.13.1, react-is@npm:^16.7.0":
+   version: 16.13.1
+   resolution: "react-is@npm:16.13.1"
+   checksum: 10c0/33977da7a5f1a287936a0c85639fec6ca74f4f15ef1e59a6bc20338fc73dc69555381e211f7a3529b8150a1f71e4225525b41b60b52965bda53ce7d47377ada1
+@@ -26851,37 +26799,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"react-palm@npm:^3.3.8":
+-  version: 3.3.8
+-  resolution: "react-palm@npm:3.3.8"
+-  dependencies:
+-    function.prototype.name: "npm:^1.1.0"
+-    react-dom: "npm:^16.4.2"
+-    react-reconciler: "npm:^0.12.0"
+-    react-test-renderer: "npm:^16.4.2"
+-  peerDependencies:
+-    enzyme: ^3.6.0
+-    enzyme-adapter-utils: ^1.13.0
+-    react: ^16.4.1
+-    react-test-renderer: ^16.4.1
+-  checksum: 10c0/dd052acbeff68e55f184f2c181d5ceb9aa129598ff3116fa9e5921b4d720957e0314efe7346620e6f1971cbfc574f39fd3d79b1659b8bf560feb5f54fe03a7c5
+-  languageName: node
+-  linkType: hard
+-
+-"react-reconciler@npm:^0.12.0":
+-  version: 0.12.0
+-  resolution: "react-reconciler@npm:0.12.0"
+-  dependencies:
+-    fbjs: "npm:^0.8.16"
+-    loose-envify: "npm:^1.1.0"
+-    object-assign: "npm:^4.1.1"
+-    prop-types: "npm:^15.6.0"
+-  peerDependencies:
+-    react: ^16.0.0
+-  checksum: 10c0/2e3262b276751465fb833ef6c989cee0716742c2d90a1bafe574f19d8cacefdc3b94dda0f25c3e664711ca8b25d35a033a3bafa21d733d7334c2611d81a54694
+-  languageName: node
+-  linkType: hard
+-
+ "react-redux@npm:^8.0.5":
+   version: 8.1.3
+   resolution: "react-redux@npm:8.1.3"
+@@ -26943,20 +26860,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"react-test-renderer@npm:^16.4.2":
+-  version: 16.14.0
+-  resolution: "react-test-renderer@npm:16.14.0"
+-  dependencies:
+-    object-assign: "npm:^4.1.1"
+-    prop-types: "npm:^15.6.2"
+-    react-is: "npm:^16.8.6"
+-    scheduler: "npm:^0.19.1"
+-  peerDependencies:
+-    react: ^16.14.0
+-  checksum: 10c0/119e3ce5509c3443393ca750e39dd4ac9ee9ddfaafca58c9067b477447edc2badb75660b9fea7e9ddef012e37bbba427681cf6f8d3fde61b8054655a133bfbf5
+-  languageName: node
+-  linkType: hard
+-
+ "react-textarea-autosize@npm:^8.5.3":
+   version: 8.5.5
+   resolution: "react-textarea-autosize@npm:8.5.5"
+@@ -28143,16 +28046,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"scheduler@npm:^0.19.1":
+-  version: 0.19.1
+-  resolution: "scheduler@npm:0.19.1"
+-  dependencies:
+-    loose-envify: "npm:^1.1.0"
+-    object-assign: "npm:^4.1.1"
+-  checksum: 10c0/9658932a73148a93d791c064b331d9690ddfecc4de25bcd6c9b89f5f1166e3d23d9c31c1595d66565e5ffbb34d47035cb14841aba6444bc266bfcd215cefe9c0
+-  languageName: node
+-  linkType: hard
+-
+ "scheduler@npm:^0.27.0":
+   version: 0.27.0
+   resolution: "scheduler@npm:0.27.0"
+@@ -30226,16 +30119,17 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"thrift@npm:^0.19.0":
+-  version: 0.19.0
+-  resolution: "thrift@npm:0.19.0"
++"thrift@npm:0.23.0":
++  version: 0.23.0
++  resolution: "thrift@npm:0.23.0"
+   dependencies:
+     browser-or-node: "npm:^1.2.1"
+     isomorphic-ws: "npm:^4.0.1"
+     node-int64: "npm:^0.4.0"
+     q: "npm:^1.5.0"
++    uuid: "npm:^13.0.0"
+     ws: "npm:^5.2.3"
+-  checksum: 10c0/935c2d9fcd3f23528fb462e8186aacf6e9c185593f59ac6ede1e3f5862de85f7d093a99546edce77443c990e6fde850a5ef5603e087cc1e9df96003f01860435
++  checksum: 10c0/746c043b8235fa03d86c3bf3737dd8a9e2223680524f745b8d659a83534893b467ae1346998a819a59506d7234a28ce9f9a75ff311964bf2cfbdcbda5e25ba76
+   languageName: node
+   linkType: hard
+ 
+@@ -30535,6 +30429,13 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
++"tr46@npm:~0.0.3":
++  version: 0.0.3
++  resolution: "tr46@npm:0.0.3"
++  checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
++  languageName: node
++  linkType: hard
++
+ "trim-lines@npm:^1.0.0":
+   version: 1.1.3
+   resolution: "trim-lines@npm:1.1.3"
+@@ -30952,13 +30853,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"ua-parser-js@npm:^0.7.30":
+-  version: 0.7.38
+-  resolution: "ua-parser-js@npm:0.7.38"
+-  checksum: 10c0/da963eae1618f0c60d0812851a4d478fb8bb127ee6e5c566b8dac27eeb25757d818d9ade2c312d73018f2bb3c3e629d26c066fcda3cb9d55a31289c9566198df
+-  languageName: node
+-  linkType: hard
+-
+ "uglify-js@npm:^3.1.4":
+   version: 3.19.0
+   resolution: "uglify-js@npm:3.19.0"
+@@ -31590,6 +31484,15 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
++"uuid@npm:^13.0.0":
++  version: 13.0.2
++  resolution: "uuid@npm:13.0.2"
++  bin:
++    uuid: dist-node/bin/uuid
++  checksum: 10c0/32c7ee84fa7c7966cc09b3a1514a752a8e2f609f15c00033fbaedc0255d577d1877b839f11ee537f37e587bbc620bbb98c3b3a1482931b8ed47d79497cd7a7cd
++  languageName: node
++  linkType: hard
++
+ "uuid@npm:^3.3.2":
+   version: 3.4.0
+   resolution: "uuid@npm:3.4.0"
+@@ -31997,6 +31900,13 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
++"webidl-conversions@npm:^3.0.0":
++  version: 3.0.1
++  resolution: "webidl-conversions@npm:3.0.1"
++  checksum: 10c0/5612d5f3e54760a797052eb4927f0ddc01383550f542ccd33d5238cfd65aeed392a45ad38364970d0a0f4fea32e1f4d231b3d8dac4a3bdd385e5cf802ae097db
++  languageName: node
++  linkType: hard
++
+ "webidl-conversions@npm:^7.0.0":
+   version: 7.0.0
+   resolution: "webidl-conversions@npm:7.0.0"
+@@ -32239,13 +32149,6 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
+-"whatwg-fetch@npm:>=0.10.0":
+-  version: 3.6.20
+-  resolution: "whatwg-fetch@npm:3.6.20"
+-  checksum: 10c0/fa972dd14091321d38f36a4d062298df58c2248393ef9e8b154493c347c62e2756e25be29c16277396046d6eaa4b11bd174f34e6403fff6aaca9fb30fa1ff46d
+-  languageName: node
+-  linkType: hard
+-
+ "whatwg-mimetype@npm:^2.3.0":
+   version: 2.3.0
+   resolution: "whatwg-mimetype@npm:2.3.0"
+@@ -32287,6 +32190,16 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
++"whatwg-url@npm:^5.0.0":
++  version: 5.0.0
++  resolution: "whatwg-url@npm:5.0.0"
++  dependencies:
++    tr46: "npm:~0.0.3"
++    webidl-conversions: "npm:^3.0.0"
++  checksum: 10c0/1588bed84d10b72d5eec1d0faa0722ba1962f1821e7539c535558fb5398d223b0c50d8acab950b8c488b4ba69043fd833cc2697056b167d8ad46fac3995a55d5
++  languageName: node
++  linkType: hard
++
+ "which-boxed-primitive@npm:^1.0.2":
+   version: 1.0.2
+   resolution: "which-boxed-primitive@npm:1.0.2"
+
+diff --git a/src/task-runtime/package.json b/src/task-runtime/package.json
+new file mode 100644
+index 0000000..18ef2d3
+--- /dev/null
++++ b/src/task-runtime/package.json
+@@ -0,0 +1,26 @@
++{
++  "name": "@kepler.gl/task-runtime",
++  "author": "Contributors to the kepler.gl project",
++  "version": "3.3.0-alpha.1",
++  "description": "Framework-neutral task runtime used by kepler.gl reducers",
++  "license": "MIT",
++  "main": "dist/index.js",
++  "types": "dist/index.d.ts",
++  "repository": {
++    "type": "git",
++    "url": "https://github.com/keplergl/kepler.gl.git"
++  },
++  "scripts": {
++    "build": "rm -fr dist && babel src --out-dir dist --source-maps inline --extensions '.ts,.tsx,.js,.jsx' --ignore '**/*.d.ts'",
++    "build:types": "tsc --project ./tsconfig.production.json",
++    "prepublishOnly": "babel-node ../../scripts/license-header/bin --license ../../FILE-HEADER && yarn build && yarn build:types",
++    "stab": "mkdir -p dist && touch dist/index.js"
++  },
++  "files": [
++    "dist"
++  ],
++  "engines": {
++    "node": ">=20"
++  },
++  "packageManager": "yarn@4.4.0"
++}
+
+diff --git a/src/task-runtime/babel.config.js b/src/task-runtime/babel.config.js
+new file mode 100644
+index 0000000..f0ce3d2
+--- /dev/null
++++ b/src/task-runtime/babel.config.js
+@@ -0,0 +1,4 @@
++// SPDX-License-Identifier: MIT
++// Copyright contributors to the kepler.gl project
++
++module.exports = require('../tasks/babel.config');
+
+diff --git a/src/task-runtime/tsconfig.production.json b/src/task-runtime/tsconfig.production.json
+new file mode 100644
+index 0000000..3f967e1
+--- /dev/null
++++ b/src/task-runtime/tsconfig.production.json
+@@ -0,0 +1,25 @@
++{
++  "compilerOptions": {
++    "target": "es2020",
++    "allowJs": false,
++    "checkJs": false,
++    "module": "esnext",
++    "moduleResolution": "node",
++    "declaration": true,
++    "emitDeclarationOnly": true,
++    "noImplicitAny": false,
++    "noImplicitReturns": true,
++    "noImplicitThis": true,
++    "noUnusedLocals": false,
++    "outDir": "dist",
++    "sourceMap": true,
++    "strictNullChecks": true,
++    "esModuleInterop": true,
++    "allowSyntheticDefaultImports": true,
++    "skipLibCheck": true,
++    "strict": true,
++    "isolatedModules": true,
++    "baseUrl": "./src"
++  },
++  "include": ["src"]
++}
+
+diff --git a/src/task-runtime/src/index.ts b/src/task-runtime/src/index.ts
+new file mode 100644
+index 0000000..fcd44a7
+--- /dev/null
++++ b/src/task-runtime/src/index.ts
+@@ -0,0 +1,256 @@
++// SPDX-License-Identifier: MIT
++// Copyright contributors to the kepler.gl project
++
++type Continuation = (value: any) => any;
++type Context = {onProgress: Continuation};
++type Effector = (success: Continuation, error: Continuation, context?: Context) => any;
++type RunEffect = (
++  effect: Effector & {payload?: any; type?: string},
++  success: Continuation,
++  error: Continuation,
++  context?: Context
++) => any;
++
++export type TaskInstance = {
++  label: string;
++  type: string;
++  payload: any;
++  run: (runEffect: RunEffect, success: Continuation, error: Continuation, context?: Context) => any;
++  map: (successTransform: Continuation) => TaskInstance;
++  bimap: (successTransform: Continuation, errorTransform: Continuation) => TaskInstance;
++  chain: (chainTransform: (value: any) => TaskInstance) => TaskInstance;
++};
++
++type TaskCreator = ((outbound: any) => TaskInstance) & {type: string};
++type Reporter = (event: 'start' | 'success' | 'error', task: TaskInstance, payload: any) => void;
++
++let reportEffects: Reporter = () => {};
++
++export function reportTasksForTesting(reporter: Reporter): void {
++  reportEffects = reporter;
++}
++
++function createTask(
++  payload: any,
++  next: TaskInstance['run'],
++  label: string
++): TaskInstance {
++  const task: TaskInstance = {
++    label,
++    type: label,
++    payload,
++    run: next,
++    map(successTransform) {
++      return createTask(
++        payload,
++        (runEffect, success, error, context) =>
++          next(runEffect, result => success(successTransform(result)), error, context),
++        label
++      );
++    },
++    bimap(successTransform, errorTransform) {
++      return createTask(
++        payload,
++        (runEffect, success, error, context) =>
++          next(
++            runEffect,
++            result => success(successTransform(result)),
++            reason => error(errorTransform(reason)),
++            context
++          ),
++        label
++      );
++    },
++    chain(chainTransform) {
++      return createTask(
++        payload,
++        (runEffect, success, error, context) =>
++          next(
++            runEffect,
++            result => chainTransform(result).run(runEffect, success, error, context),
++            error,
++            context
++          ),
++        `Chain(${label})`
++      );
++    }
++  };
++  return task;
++}
++
++function createInstrumentedTask(effector: Effector, payload: any, label: string): TaskInstance {
++  let task: TaskInstance;
++  const instrumented = Object.assign(
++    (success: Continuation, error: Continuation, context?: Context) => {
++      reportEffects('start', task, payload);
++      return effector(
++        result => {
++          reportEffects('success', task, result);
++          return success(result);
++        },
++        reason => {
++          reportEffects('error', task, reason);
++          return error(reason);
++        },
++        context
++      );
++    },
++    {payload, type: label}
++  );
++  task = createTask(
++    payload,
++    (runEffect, success, error, context) => runEffect(instrumented, success, error, context),
++    label
++  );
++  return task;
++}
++
++export function fromPromise(fn: (arg: any) => Promise<any>, label: string): TaskCreator {
++  return Object.assign(
++    (outbound: any) => createInstrumentedTask((success, error) => fn(outbound).then(success, error), outbound, label),
++    {type: label}
++  );
++}
++
++export function fromPromiseWithProgress(fn: (input: any) => Promise<any>, label: string): TaskCreator {
++  return Object.assign(
++    ({arg, onProgress}: any) =>
++      createInstrumentedTask(
++        (success, error, context) =>
++          fn({
++            arg,
++            onProgress: context ? (value: any) => context.onProgress(onProgress(value)) : () => {}
++          }).then(success, error),
++        {arg, onProgress},
++        label
++      ),
++    {type: label}
++  );
++}
++
++export function fromCallback(
++  fn: (arg: any, callback: (error: any, result: any) => any) => any,
++  label: string
++): TaskCreator {
++  return Object.assign(
++    (outbound: any) =>
++      createInstrumentedTask(
++        (success, error) => fn(outbound, (err: any, result: any) => (err ? error(err) : success(result))),
++        outbound,
++        label
++      ),
++    {type: label}
++  );
++}
++
++export function taskCreator(fn: Function, label: string): TaskCreator {
++  return Object.assign(
++    (outbound: any) =>
++      createInstrumentedTask((success, error) => fn(outbound, success, error), outbound, label),
++    {type: label}
++  );
++}
++
++function taskGroup(tasks: TaskInstance[], settle: boolean): TaskInstance {
++  const label = `Task.${settle ? 'allSettled' : 'all'}(${tasks.map(task => task.type).join(', ')})`;
++  return createTask(
++    tasks.map(task => task.payload),
++    (runEffect, success, error, context) => {
++      if (!tasks.length) return success([]);
++      const values = Array(tasks.length);
++      let complete = 0;
++      let failed = false;
++      const finish = (index: number, status: 'fulfilled' | 'rejected') => (value: any) => {
++        if (failed) return undefined;
++        if (!settle && status === 'rejected') {
++          failed = true;
++          return error(value);
++        }
++        values[index] = settle ? {status, value} : value;
++        complete += 1;
++        return complete === tasks.length ? success(values) : undefined;
++      };
++      return Promise.allSettled(
++        tasks.map((task, index) =>
++          task.run(runEffect, finish(index, 'fulfilled'), finish(index, 'rejected'), context)
++        )
++      );
++    },
++    label
++  );
++}
++
++export const all = (tasks: TaskInstance[]) => taskGroup(tasks, false);
++export const allSettled = (tasks: TaskInstance[]) => taskGroup(tasks, true);
++
++const GLOBAL_KEY = '___GLOBAL_TASK_STATE_e3b0c442';
++const root = globalThis as typeof globalThis & Record<string, any>;
++root[GLOBAL_KEY] ||= {tasks: [], lastWithTaskCall: null};
++
++export const getGlobalTaskQueue = (): TaskInstance[] => root[GLOBAL_KEY].tasks;
++const updateGlobalTaskQueue = (tasks: TaskInstance[]) => {
++  root[GLOBAL_KEY].tasks = tasks;
++};
++
++let stackCaptureEnabled = true;
++
++export function withTasks<State>(state: State, tasks: TaskInstance | TaskInstance[]): State {
++  if (stackCaptureEnabled && !root[GLOBAL_KEY].lastWithTaskCall) {
++    root[GLOBAL_KEY].lastWithTaskCall = new Error('Tasks should not be added outside of reducers.');
++  }
++  updateGlobalTaskQueue(getGlobalTaskQueue().concat(Array.isArray(tasks) ? tasks : [tasks]));
++  return state;
++}
++
++export const withTask = withTasks;
++export const disableStackCapturing = () => {
++  stackCaptureEnabled = false;
++};
++
++const resolved = Promise.resolve();
++export const taskMiddleware = (store: any) => (next: any) => (action: any) => {
++  if (stackCaptureEnabled && getGlobalTaskQueue().length) {
++    const error = root[GLOBAL_KEY].lastWithTaskCall;
++    root[GLOBAL_KEY].lastWithTaskCall = null;
++    throw error;
++  }
++  next(action);
++  const dispatch = (nextAction: any) => resolved.then(() => store.dispatch(nextAction));
++  const tasks = getGlobalTaskQueue();
++  if (!tasks.length) return resolved;
++  updateGlobalTaskQueue([]);
++  root[GLOBAL_KEY].lastWithTaskCall = null;
++  return Promise.all(
++    tasks.map(task => task.run((effect, success, error, context) => effect(success, error, context), dispatch, dispatch, {onProgress: dispatch}))
++  );
++};
++
++function capture(task: TaskInstance, simulator: RunEffect): any {
++  let returned: any;
++  task.run(simulator, value => (returned = value), value => (returned = value));
++  if (typeof returned === 'undefined') throw new Error('A success or error handler was never called!');
++  return returned;
++}
++
++export const succeedTaskInTest = (task: TaskInstance, value: any) =>
++  capture(task, (_effect, success) => success(value));
++export const errorTaskInTest = (task: TaskInstance, value: any) =>
++  capture(task, (_effect, _success, error) => error(value));
++export const simulateTask = (task: TaskInstance, simulator: RunEffect) => capture(task, simulator);
++export const succeedTaskWithValues = (task: TaskInstance, values: any[]) => {
++  let index = 0;
++  return capture(task, (_effect, success) => {
++    if (index >= values.length) throw new Error('Not enough values were provided!');
++    return success(values[index++]);
++  });
++};
++export const drainTasksForTesting = (): TaskInstance[] => {
++  const tasks = getGlobalTaskQueue();
++  updateGlobalTaskQueue([]);
++  root[GLOBAL_KEY].lastWithTaskCall = null;
++  return tasks;
++};
++
++const Task = {all, allSettled, fromCallback, fromPromise, fromPromiseWithProgress};
++export {Task};
++export default Task;
+

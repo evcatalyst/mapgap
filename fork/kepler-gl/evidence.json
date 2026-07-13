@@ -1,0 +1,98 @@
+{
+  "status": "public-fork-prerelease-not-production",
+  "verifiedAt": "2026-07-11",
+  "upstream": {
+    "repository": "https://github.com/keplergl/kepler.gl",
+    "branch": "master",
+    "commit": "73af58e99e3971b89d556aab9a21814e6e6b31e7"
+  },
+  "publicFork": {
+    "repository": "https://github.com/evcatalyst/kepler.gl",
+    "branch": "mapgap-v3-security",
+    "commit": "2607302",
+    "release": "mapgap-v3.0.0-alpha.1"
+  },
+  "patch": "patches/0001-security-runtime-spike.patch",
+  "patches": [
+    "patches/0001-security-runtime-spike.patch",
+    "patches/0002-lodash-4.18.1.patch",
+    "patches/0003-esm-deck-react19-alignment.patch"
+  ],
+  "companionPatches": [
+    {
+      "repository": "https://github.com/uber/hubble.gl",
+      "commit": "089f603f81ac088a1ba6a82747cdf6cfe71090da",
+      "patch": "../hubble-gl/patches/0001-remove-kepler-constants-pin.patch"
+    },
+    {
+      "repository": "https://github.com/uber/hubble.gl",
+      "commit": "089f603f81ac088a1ba6a82747cdf6cfe71090da",
+      "patch": "../hubble-gl/patches/0002-remove-unused-react-onclickoutside.patch"
+    },
+    {
+      "repository": "https://github.com/visgl/loaders.gl",
+      "commit": "f7a4b32712ce176f82b1423f3a3d2453e31b80b6",
+      "patch": "../loaders-gl/patches/0001-thrift-0.23.patch"
+    }
+  ],
+  "verification": {
+    "taskRuntimeTypecheck": "passed",
+    "nodeTests": {
+      "passed": 11386,
+      "failed": 0
+    },
+    "removedFocusedAuditPackages": [
+      "react-palm",
+      "react-reconciler",
+      "fbjs",
+      "isomorphic-fetch",
+      "vulnerable-node-fetch",
+      "vulnerable-workspace-d3",
+      "vulnerable-thrift",
+      "vulnerable-lodash"
+    ]
+  },
+  "packedCoreAudit": {
+    "productionDependencies": 836,
+    "totalDependencies": 845,
+    "findings": {
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "overrides": "consumer-overrides.json",
+    "excludedPackages": [
+      "@kepler.gl/ai-assistant",
+      "@kepler.gl/duckdb"
+    ]
+  },
+  "packedBrowserSmoke": {
+    "bundler": "Vite 8.0.0",
+    "build": "passed without aliases",
+    "renderedExports": {
+      "actions": 167,
+      "components": 379,
+      "processors": 29,
+      "reducers": 239,
+      "taskRuntime": 19
+    },
+    "remainingConsoleWarnings": [
+      "luma.gl same-version duplicate initialization from mixed CommonJS/ESM entrypoints"
+    ]
+  },
+  "publishedV3Prerelease": {
+    "url": "https://mapgap-v3-preview.netlify.app",
+    "deployId": "6a530b93dba88706722a9e02",
+    "strictCspWithoutUnsafeEval": "passed",
+    "liveSmokeTests": 3,
+    "liveSecurityTests": 2
+  },
+  "remainingProductionRoots": [],
+  "notYetProven": [
+    "browser runtime free of duplicate luma initialization",
+    "upstream browser suite under a supported Node version",
+    "SBOM and license review",
+    "production bundle budget and production review"
+  ]
+}
