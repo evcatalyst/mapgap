@@ -148,16 +148,21 @@ Exit criteria:
 
 ## MapGap V3 - Analyst Decision Platform
 
-Goal: create a separately deployable analyst-first MapGap that uses the best of
-Kepler.gl, MapLibre, and deck.gl without adding their weight or release risk to
-V2. See the [Kepler.gl V3 evaluation](reports/kepler-gl-evaluation.md).
+Goal: preserve the actual, independently evolving MapGap V2 product on the left
+and add a purpose-built MapGap Intelligence workbench on the right. V2 remains
+the interaction and routed-evidence authority. Intelligence adds approved
+sources, overlays, alternate visual marks, filters, legends, provenance, and
+linked evidence without changing V2 results or turning the public product into a
+generic GIS editor. See the
+[V3 Visual-Intelligence Architecture Review](reports/v3-visual-intelligence-architecture-review.md).
 
-Status: `V3.0` and `V3.1` are deployed as a fixture-only, read-only public
-prerelease. The `V3.2` comparison workspace is implemented on
-`codex/v3-comparison-workspace` and awaits review/deployment. It has no V2 route
-and is not approved for partner data or production. Production remains blocked
-on the documented bundle, accessibility, identity, persistence, SLO, SBOM, and
-operational gates.
+Status: architecture reset recommended; implementation has not started. `V3.0`
+contract and isolation work remains valid. The deployed fixture-only Kepler
+prerelease and draft `codex/v3-comparison-workspace` implementation are retained
+as research spikes, not as the merge target or supported V3 direction. They
+reconstruct both panes inside Kepler and therefore do not satisfy the
+actual-V2-left product boundary.
+No V3 build is approved for partner data or production.
 
 Architecture:
 
@@ -165,69 +170,84 @@ Architecture:
   matrix, performance budget, and rollback path. `apps/v3` has its own npm
   manifest, lockfile, CI lane, and active separate-site configuration; V2 does
   not route `/v3`.
-- Share domain schemas, API clients, routing/scoring services, provenance, and
-  report contracts with V2 rather than sharing UI state or renderer internals.
-- Put supported Kepler packages behind versioned MapGap dataset adapters. Keep
-  Kepler Redux limited to view and workbench presentation state.
+- Preserve V2 at its deployed `/v2` boundary in the wide V3 host. Connect it to
+  Intelligence through a small, sanitized, origin-checked, versioned context
+  bridge rather than importing Leaflet, Zustand, global history, or V2's
+  full-viewport shell into the V3 dependency graph.
+- Share domain schemas, API clients, routing/scoring services, provenance,
+  analysis datasets, and report contracts rather than renderer/store state.
+- Build Intelligence directly with MapLibre GL JS and selected deck.gl packages.
+  Keep sources, layers, marks, encodings, filters, selection, and saved workspace
+  state in MapGap-owned renderer-neutral contracts.
 - Keep routing, POI authority, scoring, project data, and report claims in MapGap
   services and portable schemas.
-- Re-evaluate the latest stable Kepler release when implementation starts. Do
-  not base production V3 on an alpha or on the currently measured unmitigated
-  `v3.2.6` audit surface.
-- Retain direct deck.gl/MapLibre layers as an alternative when the full Kepler UI
-  is too large, too generic, or too difficult to secure.
+- Use Kepler as a design reference, capability benchmark, prototype comparison,
+  and upstream-contribution target. Kepler packages, Redux state, UI framework,
+  and the public fork are not V3 runtime or release dependencies.
+- Wide desktop and qualified iPad landscape use two product surfaces. iPad
+  portrait and phone keep V2 primary and mount Intelligence as an explicit
+  full-surface mode, with only one heavyweight map active.
+- Every Intelligence source and renderer fails independently; right-side data or
+  WebGL failure never reloads, blocks, or mutates V2.
 
 Milestones:
 
-- `V3.0 - Architecture` — **implemented**: independent V3 build/workspace,
-  dependency-free `mapgap-project/v1` contract, V2 isolation guard, and V2
-  artifact budget guard.
-- `V3.1 - Public alpha` — **implemented, fixture-only prerelease**: versioned one-way
-  V2 adapter; relocation routed-access/candidate preset; civic
-  capacity/utilization/underserved-proxy preset; real OpenFreeMap Liberty vector
-  basemap with explicit OpenMapTiles/OpenStreetMap attribution and no provider
-  token; map-first desktop/mobile presentation; contract, parity, browser,
-  request-allowlist, viewport, and scale-policy checks.
-- `V3.2 - Comparison workspace` — **implemented on the comparison branch;
-  partner validation pending**: native synchronized Kepler dual maps on wide
-  containers; one-canvas Access/Intelligence mode on iPad portrait and phone;
-  shared selection/evidence drawer; V2 access-surface contract; bounded ACS
-  2024/TIGER 2023 housing materialization; explicit pane masks; localized source
-  failure; byte/coordinate/framebuffer qualification; Arrow-query/MVT/PMTiles
-  scale contracts; and fail-closed commercial listing/parcel governance.
-  Before partner beta, deploy the reviewed branch, validate it with a bounded
-  analyst cohort, add approved real project/result inputs and evidence exports,
-  complete accessibility/browser telemetry, and exercise 100k/1M real datasets.
-- `V3.3 - Production`: add only the persistence, permissions, operations, and
-  support capabilities proven necessary by the beta; publish independent SLOs
-  and rollback procedures.
-- `V3.F - Upstream-first security patch line` — **public fork prerelease active**:
-  keep a minimal patch series in `evcatalyst/kepler.gl`, validate fixes in the
-  upstream suite, publish immutable prerelease assets, and submit generic slices
-  upstream independently. Promotion remains conditional on maintained sync,
-  packed-consumer audit, CSP/browser evidence, ownership, and upstream timing.
+- `V3.0 - Contracts and isolation` — **retain as implemented foundation**:
+  independent V3 build/workspace, dependency-free `mapgap-project/v1`,
+  renderer-neutral analysis/provenance/governance contracts, V2 isolation guard,
+  and V2 artifact budget guard.
+- `V3.K - Kepler research spike` — **implemented, superseded as product
+  architecture**: fixture adapters, public fork/security evidence, direct scale
+  policy, ACS/TIGER fixture, pane masks, shared selection, source isolation, and
+  browser/security tests. Salvage its contracts, fixtures, scale rules, and
+  lessons; do not merge its dual-Kepler UI or fork dependency as V3.
+- `V3.2R - Product boundary reset`: host the current deployed V2 experience on
+  the left; build the static Intelligence shell and direct MapLibre/deck canvas
+  on the right; add a sanitized one-way V2 context bridge, responsive full-mode
+  switching, exact-origin frame policy, source isolation, and a
+  `mapgap-intelligence-view/v1` contract.
+- `V3.3 - Intelligence alpha`: add real bounded sources, source/layer catalog,
+  order/visibility/opacity, compatible mark switching, filters, legends,
+  tooltips, provenance, linked selection, table/text equivalents, evidence
+  export, and the relocation/civic/source-outage journeys.
+- `V3.4 - Scale and partner beta`: qualify 10k direct, 100k binary/query, and
+  1M+ tiled tiers; introduce workers, Arrow/query, MVT/PMTiles, saved/shareable
+  workspaces, permission boundaries, browser telemetry, and bounded analyst
+  validation.
+- `V3.5 - Supported production`: add only identity, persistence, permissions,
+  operations, and support capabilities proven necessary by the beta; complete
+  accessibility, CSP, performance, SBOM/license, SLO, rollback, and owned-data
+  gates.
+- `V3.F - Kepler upstream research` — **optional, not a V3 dependency**: retain
+  the public fork only while generic fixes are upstreamable and an owner accepts
+  its sync, release, security, and stop-condition budget.
 
 Exit criteria:
 
-- V2 continues to build, audit, test, and deploy without any V3 rendering
-  dependency or material artifact growth.
-- Shared fixtures produce matching points, routed polygons, profiles, scores,
-  provenance, and report inputs in V2 and V3.
-- V3 passes its own security, CSP, WebGL recovery, accessibility, performance,
-  scale, export, and rollback gates.
-- The V3 public prerelease remains at zero audit findings; any regression
-  closes the publication gate.
-- At least two analyst workflows demonstrate material value over V2 before V3
-  becomes a supported production product.
-- Any fork has an upstream-sync process, patch ledger, SBOM/license checks,
-  signed releases, an owned maintenance budget, and an explicit stop condition.
-- The local patch line has cleared Hubble's legacy Kepler/D3 pin and proven a
-  zero-finding packed npm core graph. Deck/editable-layers alignment, React
-  Intl 7, the Vite 8 browser build, and strict-CSP preview deployment are
-  verified. Before partner beta or production promotion it must close or
-  explicitly disposition remaining Mapbox peers, same-version luma duplicate
-  initialization, the upstream browser-suite harness, SBOM/license review, and
-  owned fork operations. Lodash 4.18.1 is verified.
+- V2 continues to build, audit, test, and deploy unchanged, with no MapLibre,
+  deck.gl, Kepler, Intelligence, or frame-host dependency or artifact growth.
+- The wide left pane loads the current V2 release and preserves its recognizable
+  map, search, access heat, results, evidence, history, share, and failure modes.
+- The origin-checked bridge rejects malformed, oversized, stale, wrong-source,
+  wrong-origin, and future-version messages and never transfers credentials.
+- An analyst can activate three approved right-side overlays, reorder/filter
+  them, change opacity, inspect provenance, and switch one eligible source among
+  three visual marks without refetching.
+- Every color/size/height encoding has a legend and text/table equivalent; V3
+  passes keyboard, screen-reader, reduced-motion, contrast, focus, touch, and
+  responsive browser gates.
+- Intelligence source or WebGL failure never reloads or corrupts V2, and the
+  parent share URL restores both product contexts.
+- V3 passes 10k direct, 100k binary/query, and 1M+ tiled tests; target pan/zoom is
+  at least 45 FPS on qualified desktop and 30 FPS on qualified iPad with no
+  context loss in a 30-minute mixed-layer session.
+- The supported V3 application remains under the 3 MB gzip ceiling, with
+  optional workers, charts, and advanced layers separately budgeted and lazy.
+- At least two analyst workflows show material, observed value beyond V2 before
+  V3 becomes supported production.
+- Any retained fork has an upstream-sync process, patch ledger, SBOM/license
+  checks, signed releases, owned maintenance budget, and explicit stop condition;
+  fork health cannot block direct-stack V3 releases.
 
 ## Later Platform Work
 

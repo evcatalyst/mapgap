@@ -1,10 +1,18 @@
 # Kepler.gl Evaluation for MapGap V3
 
+> **Superseded product direction (2026-07-12):** This document remains as the
+> evidence record for the Kepler comparison spike and public fork work. Its
+> recommendation to render both panes inside Kepler is no longer the V3 product
+> architecture. The current decision preserves the actual MapGap V2 experience
+> on the left and builds a MapGap-owned MapLibre/deck.gl Intelligence workbench
+> on the right. See the
+> [V3 Visual-Intelligence Architecture Review](v3-visual-intelligence-architecture-review.md).
+
 **Decision date:** 2026-07-11  
 **MapGap baseline:** `1d5e584` plus the current uncommitted Phase 1 workspace  
 **Upstream evaluated:** stable `v3.2.6`, preview `v3.3.0-alpha.1`  
-**Implementation status:** V3.2 comparison workspace is implemented on `codex/v3-comparison-workspace`; the currently published site remains the prior fixture-only prerelease until this branch is reviewed and deployed
-**Decision:** go for the dependency-isolated, fixture-only public alpha backed by a narrow public fork prerelease; V2 continues independently; permanent fork ownership and production promotion remain open
+**Implementation status:** the V3.2 comparison workspace was published as a fixture-only public alpha on 2026-07-12 and is now retained as a superseded research spike
+**Historical decision:** go for the dependency-isolated, fixture-only public alpha backed by a narrow public fork prerelease; this decision is superseded by the review linked above
 
 > **Version note:** MapGap V3 is MapGap's product generation. It is independent of Kepler.gl's own `3.x` release numbering; V3 must select the safest supported Kepler release available when implementation begins.
 
@@ -27,10 +35,10 @@ CSP, and passing live smoke/security checks. Its JavaScript plus Parquet WASM
 currently totals about 5.07 MB gzip, still above the 3 MB production target, so
 the published site remains a fixture-only prerelease rather than production.
 
-## V3.2 comparison implementation — 2026-07-12
+## V3.2 Kepler comparison research spike — 2026-07-12
 
-The side-by-side concept is now implemented as one native Kepler workbench, not
-as a report column beside a token map and not as Leaflet next to Kepler.
+The research spike implemented the side-by-side concept as one native Kepler
+workbench. The fresh review supersedes that product interpretation.
 
 - Wide containers render two Kepler/MapLibre canvases: **Access heat** on the
   left and **Location intelligence** on the right. Viewports and zoom are

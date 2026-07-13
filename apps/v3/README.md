@@ -1,5 +1,11 @@
 # MapGap V3 public prerelease
 
+> **Research-spike notice (2026-07-12):** This deployed Kepler comparison is
+> retained as technical evidence; it is not the target V3 product architecture.
+> The corrected direction preserves the actual V2 product on the left and builds
+> a purpose-built MapGap Intelligence workbench on the right. See the
+> [fresh architecture review](../../docs/reports/v3-visual-intelligence-architecture-review.md).
+
 V3 is a separately installable analyst workbench published at
 `https://mapgap-v3-preview.netlify.app`. It proves the MapGap project contract
 and Kepler presentation seam without changing V2's dependency graph, build,
