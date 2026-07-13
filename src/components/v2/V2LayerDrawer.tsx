@@ -6,7 +6,9 @@ import {
   Eye,
   EyeOff,
   Layers3,
+  Plus,
   Route,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -30,12 +32,19 @@ export type V2MapLayer = {
 };
 
 type V2LayerDrawerProps = {
+  activeSearch?: {
+    count: number;
+    label: string;
+    saved: boolean;
+  };
   layers: V2MapLayer[];
   open: boolean;
+  onAddCurrentResults: () => void;
   onClose: () => void;
   onDeleteLayer: (layerId: string) => void;
   onDeletePoint: (layerId: string, pointId: string) => void;
   onMoveLayer: (layerId: string, direction: -1 | 1) => void;
+  onOpenCurrentResults: () => void;
   onSelectPoint: (point: ServicePoint) => void;
   onToggleExpanded: (layerId: string) => void;
   onToggleHeat: (layerId: string) => void;
@@ -43,12 +52,15 @@ type V2LayerDrawerProps = {
 };
 
 export function V2LayerDrawer({
+  activeSearch,
   layers,
   open,
+  onAddCurrentResults,
   onClose,
   onDeleteLayer,
   onDeletePoint,
   onMoveLayer,
+  onOpenCurrentResults,
   onSelectPoint,
   onToggleExpanded,
   onToggleHeat,
@@ -97,10 +109,55 @@ export function V2LayerDrawer({
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {layers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
-              Refine a nearby search, then choose <strong>Add as layer</strong>.
+          {activeSearch && !activeSearch.saved && (
+            <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <p className="text-xs font-semibold uppercase text-emerald-800 dark:text-emerald-200">
+                Current results
+              </p>
+              <div className="mt-1 flex items-baseline justify-between gap-3">
+                <p className="min-w-0 truncate text-sm font-semibold text-neutral-950 dark:text-neutral-50">
+                  {activeSearch.label}
+                </p>
+                <span className="shrink-0 text-xs text-neutral-600 dark:text-neutral-300">
+                  {activeSearch.count} {activeSearch.count === 1 ? "place" : "places"}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                className="mt-3 w-full justify-center"
+                onClick={onAddCurrentResults}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add as layer
+              </Button>
+              <button
+                type="button"
+                className="mt-2 min-h-11 w-full rounded-xl text-xs font-semibold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:text-emerald-200 dark:hover:bg-emerald-950"
+                onClick={onOpenCurrentResults}
+              >
+                Review and refine results
+              </button>
             </div>
+          )}
+
+          {layers.length === 0 ? (
+            !activeSearch || activeSearch.saved ? (
+              <div className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+                <p>Search nearby, refine the places, then save the result here.</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3 w-full justify-center"
+                  onClick={onOpenCurrentResults}
+                >
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                  Explore nearby
+                </Button>
+              </div>
+            ) : null
           ) : (
             <div className="space-y-2">
               {layers.map((layer, index) => (

@@ -244,6 +244,10 @@ export function V2PublicDemoShell() {
   useEffect(() => {
     drawerModeRef.current = drawerMode;
 
+    if (drawerMode !== "closed") {
+      setLayerDrawerOpen(false);
+    }
+
     if (previousDrawerModeRef.current !== "closed" && drawerMode === "closed") {
       window.requestAnimationFrame(() => fabRef.current?.focus());
     }
@@ -732,6 +736,18 @@ export function V2PublicDemoShell() {
       ? `${selectedCategoryLabel} nearby`
       : "Explore Nearby";
 
+  function openLayerDrawer() {
+    setDrawerModeWithHistory("closed", { replace: true });
+    setLayerDrawerOpen(true);
+  }
+
+  function openCurrentResultsFromLayers() {
+    setLayerDrawerOpen(false);
+    setDrawerModeWithHistory(
+      selectedCategory && pointsState.points.length > 0 ? "resultsPeek" : "categoryPicker",
+    );
+  }
+
   return (
     <main className="mapgap-v2-shell relative h-dvh min-h-screen overflow-hidden bg-neutral-100 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50">
       <MapCanvas
@@ -782,17 +798,28 @@ export function V2PublicDemoShell() {
 
       <PublicTopBar
         layerCount={mapLayers.length}
-        onOpenLayers={() => setLayerDrawerOpen(true)}
+        onOpenLayers={openLayerDrawer}
         routingAvailable={routingAvailable}
       />
 
       <V2LayerDrawer
+        activeSearch={
+          selectedCategory && selectedCategoryLabel && pointsState.points.length > 0
+            ? {
+                count: pointsState.points.length,
+                label: selectedCategoryLabel,
+                saved: Boolean(currentSavedLayerId),
+              }
+            : undefined
+        }
         layers={mapLayers}
         open={layerDrawerOpen}
+        onAddCurrentResults={addCurrentResultsAsLayer}
         onClose={() => setLayerDrawerOpen(false)}
         onDeleteLayer={deleteMapLayer}
         onDeletePoint={deletePointFromLayer}
         onMoveLayer={moveMapLayer}
+        onOpenCurrentResults={openCurrentResultsFromLayers}
         onSelectPoint={(point) => {
           setLayerDrawerOpen(false);
           selectPoint(point);
@@ -1332,6 +1359,22 @@ function ResultsContent({
           ))}
         </div>
 
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          className="mt-3 w-full justify-center"
+          disabled={points.length === 0 || resultsSavedAsLayer}
+          onClick={onAddLayer}
+        >
+          {resultsSavedAsLayer ? (
+            <Layers3 className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          )}
+          {resultsSavedAsLayer ? "Saved to layers" : "Add as layer"}
+        </Button>
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
             Heatmap
@@ -1410,20 +1453,6 @@ function ResultsContent({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          disabled={points.length === 0 || resultsSavedAsLayer}
-          onClick={onAddLayer}
-        >
-          {resultsSavedAsLayer ? (
-            <Layers3 className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          )}
-          {resultsSavedAsLayer ? "Added to layers" : "Add as layer"}
-        </Button>
         {isSearchStale && (
           <Button type="button" variant="primary" size="sm" onClick={onRefreshSearch}>
             <Search className="h-4 w-4" aria-hidden="true" />

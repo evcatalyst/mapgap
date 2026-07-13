@@ -103,8 +103,17 @@ for (const viewport of viewports) {
       maxDiffPixelRatio: 0.02,
     });
 
-    await drawer.getByRole("button", { name: "Add as layer" }).click();
-    await expect(page.getByRole("complementary", { name: "Map layers" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    await expect(drawer).toBeHidden();
+    const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
+    await expect(layerDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+    await expect(page).toHaveScreenshot(`${viewport.name}-layer-entry.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    });
+    await layerDrawer.getByRole("button", { name: "Add as layer" }).click();
     await expect(page).toHaveScreenshot(`${viewport.name}-layers.png`, {
       animations: "disabled",
       caret: "hide",

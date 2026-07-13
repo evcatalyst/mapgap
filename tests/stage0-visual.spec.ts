@@ -736,12 +736,23 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
 
     const nearbyDrawer = page.locator('section[aria-label="Nearby access drawer"]');
     await expect(nearbyDrawer.getByRole("heading", { name: "Laundry nearby" })).toBeVisible();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
     await nearbyDrawer.getByRole("button", { name: "Walk" }).click();
     await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
-    await nearbyDrawer.getByRole("button", { name: "Add as layer" }).click();
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    await expect(nearbyDrawer).toBeHidden();
 
     const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
     await expect(layerDrawer).toBeVisible();
+    await expect(layerDrawer.getByText("Current results")).toBeVisible();
+    await layerDrawer.getByRole("button", { name: "Review and refine results" }).click();
+    await expect(layerDrawer).toBeHidden();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    await expect(nearbyDrawer).toBeHidden();
+    await layerDrawer.getByRole("button", { name: "Add as layer" }).click();
     await expect(layerDrawer.getByText("Laundry", { exact: true })).toBeVisible();
     await expect(layerDrawer.getByText("2 places")).toBeVisible();
     await expect(layerDrawer.getByRole("button", { name: "10 min walk" })).toBeVisible();
@@ -771,6 +782,7 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await page.getByRole("button", { name: "Laundry nearby" }).click();
     await nearbyDrawer.getByRole("button", { name: "Categories" }).click();
     await nearbyDrawer.getByRole("button", { name: /Coffee/ }).click();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
     await nearbyDrawer.getByRole("button", { name: "Add as layer" }).click();
     await expect(layerDrawer.getByText("2 layers")).toBeVisible();
 
@@ -780,6 +792,25 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
       "aria-label",
       "Map layer Coffee",
     );
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("v2 empty layer drawer leads directly into nearby exploration", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
+    await expect(layerDrawer.getByRole("button", { name: "Explore nearby" })).toBeVisible();
+    await layerDrawer.getByRole("button", { name: "Explore nearby" }).click();
+
+    await expect(layerDrawer).toBeHidden();
+    await expect(
+      page.locator('section[aria-label="Nearby access drawer"]').getByRole("heading", {
+        name: "Explore nearby",
+      }),
+    ).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 
