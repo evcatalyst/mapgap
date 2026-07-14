@@ -77,6 +77,87 @@ async function mockScreenshotRoutes(page: Page) {
       }),
     });
   });
+
+  await page.route("**/api/housing/listings**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        count: 3,
+        mode: "illustrative",
+        sources: ["illustrative"],
+        warnings: [
+          "No live housing feed is enabled. These are illustrative records, not available homes.",
+        ],
+        liveProviderConfigured: false,
+        query: {
+          bbox: [-74, 42.6, -73.6, 42.9],
+          tenure: "rent",
+          maxPrice: 2400,
+          minBedrooms: 1,
+        },
+        listings: [
+          {
+            id: "illustrative-rent-1",
+            title: "Illustrative 1-bedroom rental",
+            address: "Example location in the current map view",
+            location: { lat: 42.7, lng: -73.88 },
+            tenure: "rent",
+            price: 1650,
+            bedrooms: 1,
+            bathrooms: 1,
+            squareFeet: 680,
+            propertyType: "Apartment",
+            source: "illustrative",
+            sourceLabel: "Illustrative example",
+            provenance: {
+              access: "illustrative",
+              label: "MapGap example data",
+              note: "Not a real or available property.",
+            },
+          },
+          {
+            id: "illustrative-rent-2",
+            title: "Illustrative 2-bedroom rental",
+            address: "Example location in the current map view",
+            location: { lat: 42.76, lng: -73.78 },
+            tenure: "rent",
+            price: 1950,
+            bedrooms: 2,
+            bathrooms: 1.5,
+            squareFeet: 980,
+            propertyType: "Townhouse",
+            source: "illustrative",
+            sourceLabel: "Illustrative example",
+            provenance: {
+              access: "illustrative",
+              label: "MapGap example data",
+              note: "Not a real or available property.",
+            },
+          },
+          {
+            id: "illustrative-rent-3",
+            title: "Illustrative 3-bedroom rental",
+            address: "Example location in the current map view",
+            location: { lat: 42.65, lng: -73.72 },
+            tenure: "rent",
+            price: 2250,
+            bedrooms: 3,
+            bathrooms: 2,
+            squareFeet: 1320,
+            propertyType: "Multi-Family",
+            source: "illustrative",
+            sourceLabel: "Illustrative example",
+            provenance: {
+              access: "illustrative",
+              label: "MapGap example data",
+              note: "Not a real or available property.",
+            },
+          },
+        ],
+      }),
+    });
+  });
 }
 
 for (const viewport of viewports) {
@@ -115,6 +196,44 @@ for (const viewport of viewports) {
     });
     await layerDrawer.getByRole("button", { name: "Add as layer" }).click();
     await expect(page).toHaveScreenshot(`${viewport.name}-layers.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    });
+  });
+
+  test(`relocation ${viewport.name} guided journey baseline`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await mockScreenshotRoutes(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/v2/relocate");
+    await expect(page.getByRole("heading", { name: "Start with the household decision" })).toBeVisible();
+    await expect(page).toHaveScreenshot(`relocate-${viewport.name}-needs.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    });
+
+    await page.getByRole("button", { name: "Homes" }).click();
+    await page.getByRole("button", { name: "Find homes in this view" }).click();
+    await expect(page.getByText("3 map candidates")).toBeVisible();
+    if (viewport.name === "desktop") {
+      await expect(page.locator(".mapgap-housing-marker span").first()).toHaveText("$1.7k");
+    }
+    await expect(page).toHaveScreenshot(`relocate-${viewport.name}-homes.png`, {
+      animations: "disabled",
+      caret: "hide",
+      maxDiffPixelRatio: 0.02,
+    });
+
+    await page
+      .getByRole("button", { name: "Add Illustrative 1-bedroom rental to shortlist" })
+      .click();
+    await page.getByRole("button", { name: "Compare" }).click();
+    await page.getByRole("button", { name: "Score shortlist" }).click();
+    await expect(page.getByText("Best current fit")).toBeVisible();
+    await page.waitForTimeout(4_200);
+    await expect(page).toHaveScreenshot(`relocate-${viewport.name}-compare.png`, {
       animations: "disabled",
       caret: "hide",
       maxDiffPixelRatio: 0.02,

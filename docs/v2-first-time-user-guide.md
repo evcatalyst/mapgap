@@ -174,9 +174,25 @@ The public daily-life entrypoint does not yet include:
 - AI search or recommendation workflows.
 
 Focused relocation and civic pilot workflows are available separately at
-`/v2/relocate` and `/v2/audit`. They reuse the current deterministic profile,
-candidate, CSV asset, routing, and decision-memo foundations while field
-validation determines whether they should become primary product journeys.
+`/v2/relocate` and `/v2/audit`.
+
+The relocation workflow now has four steps:
+
+1. `Needs`: choose a household story, set anchors, and edit travel limits.
+2. `Homes`: pan to an area, search only when ready, and save housing candidates.
+3. `Daily life`: add only the coffee, grocery, laundry, or library evidence that
+   matters to the household.
+4. `Compare`: score saved homes, inspect failed constraints, and export a brief.
+
+Housing markers use price labels at neighborhood zoom and small dots at regional
+zoom. If no live listing connector is enabled, every example is explicitly
+marked illustrative. Zillow, Trulia, Craigslist, and MLS records can be imported
+only when the user is authorized to use them; MapGap does not scrape those sites.
+Changing the map or housing filters marks existing provider results as needing a
+refresh, but does not spend another provider request until the user presses the
+refresh button.
+See [Housing Listing Sources](housing-data-sources.md) for the provider and cost
+rules.
 
 Those are roadmap items. The current goal is to make the first public experience
 clear enough that someone can open it, pan to a place, tap one obvious control,

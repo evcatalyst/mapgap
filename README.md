@@ -136,6 +136,20 @@ OPENROUTE_SERVICE_API_KEY
 OPENCAGE_API_KEY
 ```
 
+Optional Stage 2 housing connector variables:
+
+```bash
+RENTCAST_API_KEY
+HOUSING_LIVE_PROVIDER_ENABLED=false
+HOUSING_LISTINGS_CACHE_TTL_SECONDS=900
+```
+
+Live housing requests remain disabled until the API key is configured and
+`HOUSING_LIVE_PROVIDER_ENABLED=true`. Without both values, `/v2/relocate` uses
+clearly labeled illustrative records. See
+[`docs/housing-data-sources.md`](docs/housing-data-sources.md) for provider,
+import, licensing, and cost boundaries.
+
 `VALHALLA_BASE_URL` is optional for production until the beta provider is hosted.
 Do not set it to `localhost` in Netlify; Netlify Functions need a public or private-network
 URL that is reachable from Netlify's runtime. If neither ORS nor hosted Valhalla is

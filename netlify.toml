@@ -29,6 +29,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/housing/listings"
+  to = "/.netlify/functions/housing-listings"
+  status = 200
+
+[[redirects]]
   from = "/api/openrouteservice/*"
   to = "/.netlify/functions/openrouteservice?path=:splat"
   status = 200
