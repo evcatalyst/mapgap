@@ -106,14 +106,31 @@ Exit criteria:
 
 Goal: rank candidate places and explain every pass or failure.
 
+Status: guided workflow foundation implemented on the
+`codex/v2-relocation-housing` branch; field validation and durable sharing remain.
+
+Implemented foundation:
+
+- Four-step `/v2/relocate` journey: needs, homes, daily life, and compare.
+- Household, dual-career, and hospital on-call scenario defaults.
+- Distinct housing price markers that collapse to map dots at regional zoom.
+- Explicit viewport search with an optional cached RentCast connector and a
+  fail-closed cost gate.
+- Stale-result signaling after map or filter changes, with no provider request
+  until the user explicitly refreshes.
+- Authorized CSV import for Zillow, Trulia, Craigslist, MLS, and other records
+  without claiming unlicensed live integrations.
+- Shortlisting and deterministic listing comparison with real price evidence,
+  visible affordability failures, source access mode, and exportable briefs.
+- Clearly labeled illustrative homes when no live feed is enabled.
+
 Work:
 
-- Add `/v2/relocate` using the existing profile, anchor, candidate-zone, and
-  deterministic scoring primitives.
-- Capture commute limits, daily-life requirements, healthcare/on-call limits,
-  household anchors, and explicit preferences.
-- Produce candidate zones, transparent scorecards, failed constraints, and a
-  shareable relocation brief.
+- Validate the four-step journey with relocation households and practitioners.
+- Add durable shortlist/project persistence and shareable relocation state.
+- Add an authorized RESO/MLS connector after a data agreement is in place.
+- Add housing market context without confusing it with live inventory.
+- Expand route-backed candidate checks and report completeness.
 - Keep natural-language intake optional and always expose the parsed structure.
 
 Exit criteria:

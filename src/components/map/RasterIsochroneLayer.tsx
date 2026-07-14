@@ -240,7 +240,13 @@ function getOutermostFeaturesByPoint(features: IsochroneFeature[]) {
   return Array.from(byPoint.values());
 }
 
-export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[] }) {
+export function RasterIsochroneLayer({
+  features,
+  zIndex,
+}: {
+  features: IsochroneFeature[];
+  zIndex?: number;
+}) {
   const map = useMap();
   const settings = useMapIsoStore((state) => state.settings);
   const theme = useMapIsoStore((state) => state.theme);
@@ -262,6 +268,9 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
     let colorScratch: ScratchCanvas | undefined;
 
     canvas.style.pointerEvents = "none";
+    if (zIndex !== undefined) {
+      canvas.style.zIndex = String(zIndex);
+    }
     pane.appendChild(canvas);
 
     const redraw = () => {
@@ -413,7 +422,7 @@ export function RasterIsochroneLayer({ features }: { features: IsochroneFeature[
       }
       canvas.remove();
     };
-  }, [features, map, settings.isochroneMode, settings.opacity, theme]);
+  }, [features, map, settings.isochroneMode, settings.opacity, theme, zIndex]);
 
   return null;
 }

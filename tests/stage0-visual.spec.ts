@@ -52,7 +52,10 @@ async function expectInsideViewport(page: Page, locator: Locator) {
 
 async function mockAppRoutes(
   page: Page,
-  options?: { onIsochroneRequest?: (body: Record<string, unknown>) => void },
+  options?: {
+    onHousingRequest?: (url: URL) => void;
+    onIsochroneRequest?: (body: Record<string, unknown>) => void;
+  },
 ) {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
@@ -253,6 +256,55 @@ async function mockAppRoutes(
         extensions,
         activeExtensions,
         warnings: category === "library" ? ["Libraries loaded from NJ public source."] : [],
+      }),
+    });
+  });
+
+  await page.route("**/api/housing/listings**", async (route) => {
+    const url = new URL(route.request().url());
+    options?.onHousingRequest?.(url);
+    const tenure = url.searchParams.get("tenure") === "sale" ? "sale" : "rent";
+    const maxPrice = Number(url.searchParams.get("maxPrice")) || (tenure === "rent" ? 2400 : 400000);
+    const prices = tenure === "rent" ? [1650, 1925, 2250] : [285000, 325000, 365000];
+    const listings = prices
+      .filter((price) => price <= maxPrice)
+      .map((price, index) => ({
+        id: `illustrative-${tenure}-${index + 1}`,
+        title: `Illustrative ${index + 1}-bedroom ${tenure === "rent" ? "rental" : "home"}`,
+        address: "Example location in the current map view",
+        location: { lat: 42.64 + index * 0.035, lng: -73.83 + index * 0.05 },
+        tenure,
+        price,
+        bedrooms: index + 1,
+        bathrooms: index + 1,
+        squareFeet: 650 + index * 300,
+        propertyType: index === 0 ? "Apartment" : "Townhouse",
+        status: "Illustrative only",
+        source: "illustrative",
+        sourceLabel: "Illustrative example",
+        confidence: "low",
+        provenance: {
+          access: "illustrative",
+          label: "MapGap example data",
+          note: "Not a real or available property.",
+        },
+      }));
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        count: listings.length,
+        listings,
+        mode: "illustrative",
+        sources: ["illustrative"],
+        warnings: ["No live housing feed is enabled. These are illustrative records, not available homes."],
+        liveProviderConfigured: false,
+        query: {
+          bbox: [-74, 42.6, -73.6, 42.9],
+          tenure,
+          maxPrice,
+          minBedrooms: 1,
+        },
       }),
     });
   });
@@ -729,6 +781,91 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("v2 saves refined results and access heat as a tunable map layer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2?category=laundry&bbox=-74.08,40.68,-74.02,40.74");
+
+    const nearbyDrawer = page.locator('section[aria-label="Nearby access drawer"]');
+    await expect(nearbyDrawer.getByRole("heading", { name: "Laundry nearby" })).toBeVisible();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+    await nearbyDrawer.getByRole("button", { name: "Walk" }).click();
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    await expect(nearbyDrawer).toBeHidden();
+
+    const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
+    await expect(layerDrawer).toBeVisible();
+    await expect(layerDrawer.getByText("Current results")).toBeVisible();
+    await layerDrawer.getByRole("button", { name: "Review and refine results" }).click();
+    await expect(layerDrawer).toBeHidden();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    await expect(nearbyDrawer).toBeHidden();
+    await layerDrawer.getByRole("button", { name: "Add as layer" }).click();
+    await expect(layerDrawer.getByText("Laundry", { exact: true })).toBeVisible();
+    await expect(layerDrawer.getByText("2 places")).toBeVisible();
+    await expect(layerDrawer.getByRole("button", { name: "10 min walk" })).toBeVisible();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(2);
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(1);
+
+    const compactMarkerWidth = await page
+      .locator(".mapgap-service-marker")
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(compactMarkerWidth).toBeLessThanOrEqual(10);
+
+    await layerDrawer.getByRole("button", { name: "Hide Laundry" }).click();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(0);
+    await expect(page.locator(".mapiso-raster-isochrones")).toHaveCount(0);
+
+    await layerDrawer.getByRole("button", { name: "Show Laundry" }).click();
+    await layerDrawer
+      .getByRole("button", { name: "Delete Viewport Laundromat B from Laundry" })
+      .click();
+    await expect(layerDrawer.getByText("1 place")).toBeVisible();
+    await expect(page.locator(".mapgap-service-marker")).toHaveCount(1);
+
+    await layerDrawer.getByRole("button", { name: "Close layers panel" }).click();
+    await expect(page.getByRole("button", { name: "Open map layers, 1 saved" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Laundry nearby" }).click();
+    await nearbyDrawer.getByRole("button", { name: "Categories" }).click();
+    await nearbyDrawer.getByRole("button", { name: /Coffee/ }).click();
+    await expect(nearbyDrawer.getByRole("button", { name: "Add as layer" })).toBeVisible();
+    await nearbyDrawer.getByRole("button", { name: "Add as layer" }).click();
+    await expect(layerDrawer.getByText("2 layers")).toBeVisible();
+
+    const coffeeLayer = layerDrawer.getByRole("region", { name: "Map layer Coffee" });
+    await coffeeLayer.getByRole("button", { name: "Move Coffee up" }).click();
+    await expect(layerDrawer.getByRole("region").first()).toHaveAttribute(
+      "aria-label",
+      "Map layer Coffee",
+    );
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("v2 empty layer drawer leads directly into nearby exploration", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await mockAppRoutes(page);
+    await page.goto("/v2");
+
+    await page.getByRole("button", { name: "Open map layers" }).click();
+    const layerDrawer = page.getByRole("complementary", { name: "Map layers" });
+    await expect(layerDrawer.getByRole("button", { name: "Explore nearby" })).toBeVisible();
+    await layerDrawer.getByRole("button", { name: "Explore nearby" }).click();
+
+    await expect(layerDrawer).toBeHidden();
+    await expect(
+      page.locator('section[aria-label="Nearby access drawer"]').getByRole("heading", {
+        name: "Explore nearby",
+      }),
+    ).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("ipad v2 keeps the category drawer staged over a live map", async ({ page }) => {
     await page.setViewportSize({ width: 820, height: 1180 });
     await mockAppRoutes(page);
@@ -1076,22 +1213,96 @@ test.describe("Stage 0 visual entrypoint regressions", () => {
     await mockAppRoutes(page);
 
     await page.goto("/v2/relocate");
-    await expect(page.getByRole("heading", { name: "Relocation decision brief" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Relocation brief" })).toBeVisible();
     await expect(page.getByLabel("Household scenario")).toHaveValue("relocation-household");
     await page.getByLabel("Household scenario").selectOption("dual-career");
-    await expect(page.locator("p", { hasText: "Dual-career household" }).first()).toBeVisible();
+    await expect(page.getByText("Albany job anchor")).toBeVisible();
 
     const relocationInputs = page.getByLabel("Relocation inputs");
     await relocationInputs.getByRole("button", { name: "Set here" }).first().click();
     await page.getByLabel("commute minutes").first().fill("25");
+
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: "Homes in this view" })).toBeVisible();
+    await page.getByRole("button", { name: "Find homes in this view" }).click();
+    await expect(page.getByText("3 map candidates")).toBeVisible();
+    await expect(page.locator(".mapgap-housing-marker")).toHaveCount(3);
+    await page
+      .getByRole("button", { name: "Add Illustrative 1-bedroom rental to shortlist" })
+      .click();
+
+    await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Coffee" }).click();
     await expect(page.getByText("1 layers")).toBeVisible();
 
-    await page.getByRole("button", { name: "Generate candidate zones" }).click();
-    await expect(page.getByText("Top candidate")).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Score shortlist" }).click();
+    await expect(page.getByText("Ranked shortlist")).toBeVisible();
+    await expect(page.getByText("Best current fit")).toBeVisible();
     await expect(page.getByText(/\/100/).first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Export memo" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Export brief" })).toBeEnabled();
     await expectNoHorizontalOverflow(page);
+  });
+
+  test("relocation housing accepts authorized Zillow and Craigslist CSV records", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockAppRoutes(page);
+    await page.goto("/v2/relocate");
+    await page.getByRole("button", { name: "Homes" }).click();
+    await page.getByText("Import authorized listing CSV").click();
+
+    const csv = [
+      "title,latitude,longitude,price,bedrooms,bathrooms,source,source_url",
+      "Zillow candidate,42.65,-73.75,2150,2,1,Zillow,https://www.zillow.com/example",
+      "Craigslist candidate,42.67,-73.78,1800,1,1,Craigslist,https://albany.craigslist.org/example",
+    ].join("\n");
+    await page.locator('input[type="file"][accept*="csv"]').setInputFiles({
+      name: "authorized-housing.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv),
+    });
+
+    await expect(page.getByText("Imported Zillow").first()).toBeVisible();
+    await expect(page.getByText("Imported Craigslist").first()).toBeVisible();
+    await expect(page.getByText("user-provided").first()).toBeVisible();
+    await expect(page.locator(".mapgap-housing-marker")).toHaveCount(2);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("relocation housing spends provider requests only on explicit search", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    let housingRequests = 0;
+    await mockAppRoutes(page, {
+      onHousingRequest: () => {
+        housingRequests += 1;
+      },
+    });
+    await page.goto("/v2/relocate");
+    await page.getByRole("button", { name: "Homes" }).click();
+
+    await page.getByLabel("Housing tenure").selectOption("sale");
+    await page.getByLabel("Maximum housing price").fill("400000");
+    await page.getByLabel("Minimum bedrooms").selectOption("2");
+    expect(housingRequests).toBe(0);
+
+    await page.getByRole("button", { name: "Find homes in this view" }).click();
+    await expect(page.getByText("3 map candidates")).toBeVisible();
+    expect(housingRequests).toBe(1);
+
+    await page.mouse.move(80, 210);
+    await page.mouse.down();
+    await page.mouse.move(150, 190, { steps: 4 });
+    await page.mouse.up();
+    await expect(page.getByText("Map or filters changed.")).toBeVisible();
+    expect(housingRequests).toBe(1);
+
+    await page.getByLabel("Maximum housing price").fill("325000");
+    await expect(page.getByRole("button", { name: "Refresh homes in this view" })).toBeVisible();
+    expect(housingRequests).toBe(1);
+
+    await page.getByRole("button", { name: "Refresh homes in this view" }).click();
+    await expect(page.getByText("2 map candidates")).toBeVisible();
+    expect(housingRequests).toBe(2);
   });
 
   test("focused civic route imports assets and exposes routed audit actions", async ({ page }) => {

@@ -5,6 +5,7 @@ import type {
   ScenarioId,
   TransportMode,
 } from "../types";
+import type { HousingListingAccess, HousingListingSource, HousingTenure } from "./housing";
 
 export type AnchorCategory =
   | "home"
@@ -56,6 +57,16 @@ export type CandidateHome = LatLng & {
   id: string;
   label: string;
   source: "grid" | "user" | "listing" | "import";
+  address?: string;
+  price?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  squareFeet?: number;
+  tenure?: HousingTenure;
+  listingSource?: HousingListingSource;
+  listingSourceLabel?: string;
+  listingSourceUrl?: string;
+  listingAccess?: HousingListingAccess;
   score?: ScoreBreakdown;
 };
 
@@ -143,7 +154,7 @@ export type ScoreBreakdown = {
     explanation: string;
   }>;
   failedConstraints: Array<{
-    constraintType: DecisionConstraint["type"];
+    constraintType: DecisionConstraint["type"] | "affordability";
     label: string;
     explanation: string;
   }>;
@@ -154,7 +165,14 @@ export type ScenarioAssumption = {
   id: string;
   label: string;
   value: string;
-  source: "user" | "osm" | "routing-provider" | "census" | "import" | "system";
+  source:
+    | "user"
+    | "osm"
+    | "routing-provider"
+    | "listing-provider"
+    | "census"
+    | "import"
+    | "system";
 };
 
 export type ScenarioReport = {

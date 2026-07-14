@@ -38,6 +38,14 @@ export function buildDecisionMemoMarkdown({
   const utilizationRecords = importedAssets.filter((point) => point.utilization).length;
   const fundingSources = new Set(importedAssets.map((point) => point.fundingSource).filter(Boolean));
   const topCandidates = candidates.slice(0, 5);
+  const listingCandidates = candidates.filter((candidate) => candidate.source === "listing");
+  const candidateNoun =
+    listingCandidates.length > 0 && listingCandidates.length === candidates.length
+      ? "saved home"
+      : "candidate area";
+  const listingSources = Array.from(
+    new Set(listingCandidates.map((candidate) => candidate.listingSourceLabel).filter(Boolean)),
+  );
   const sourceLabels = Array.from(new Set(visiblePoiLayers.map((layer) => layer.source))).sort();
   const hasRoutedCandidateEvidence = candidates.some((candidate) =>
     candidate.score?.assumptions.some(
@@ -56,12 +64,12 @@ export function buildDecisionMemoMarkdown({
     "## Executive Summary",
     "",
     topCandidates.length > 0
-      ? `MapGap scored ${candidates.length} candidate zone${
+      ? `MapGap scored ${candidates.length} ${candidateNoun}${
           candidates.length === 1 ? "" : "s"
         } using the active profile, anchors, visible POI layers, and current map assumptions. The top candidate is ${
           topCandidates[0]?.label
         } with a score of ${topCandidates[0]?.score?.total ?? 0}/100.`
-      : "No candidate zones have been generated yet. Generate candidate zones before using this memo as a shortlist.",
+      : "No candidates have been scored yet. Add saved homes or generate candidate areas before using this memo as a shortlist.",
     "",
     "## Profile Inputs",
     "",
@@ -76,6 +84,7 @@ export function buildDecisionMemoMarkdown({
     `- Utilization records: ${utilizationRecords || "not provided"}`,
     `- Funding sources: ${fundingSources.size || "not provided"}`,
     `- Visible POI layers: ${visiblePoiLayers.length}`,
+    `- Housing candidates: ${listingCandidates.length}`,
     `- Isochrone rings: ${isochrones.length}`,
     `- Travel mode: ${TRANSPORT_LABELS[settings.transportMode]}`,
     `- Routing provider: ${ROUTING_PROVIDER_LABELS[settings.routingProvider]}`,
@@ -124,8 +133,14 @@ export function buildDecisionMemoMarkdown({
     "",
     `- Routing: ${ROUTING_PROVIDER_LABELS[settings.routingProvider]}`,
     `- POIs: ${sourceLabels.length > 0 ? sourceLabels.join(", ") : "none in this memo"}`,
+    `- Housing listings: ${listingSources.length > 0 ? listingSources.join(", ") : "none in this memo"}`,
     `- Imported assets: ${importedAssets.length > 0 ? "user CSV or manual map entries" : "none in this memo"}`,
-    "- Candidate scoring uses a viewport grid and transparent component weights, not parcel or listing inventory.",
+    listingCandidates.length > 0
+      ? "- Listing candidates use recorded price and location plus transparent profile weights; availability, condition, fees, and listing terms still require verification."
+      : "- Candidate scoring uses a viewport grid and transparent component weights, not parcel or listing inventory.",
+    listingCandidates.some((candidate) => candidate.listingAccess === "illustrative")
+      ? "- Illustrative housing candidates are workflow examples, not real or available properties."
+      : "- Housing source labels describe how MapGap received each record; they do not imply provider endorsement.",
     hasRoutedCandidateEvidence
       ? "- Candidate scoring includes generated routed profile-anchor or imported-asset contours where available; dimensions without generated contours still use proxy distances."
       : "- Candidate scoring currently uses straight-line distance proxies for anchors, amenities, healthcare, commute, and civic asset reach.",
@@ -164,7 +179,7 @@ function assetInventorySection(assets: MapPoint[]) {
 
 function candidateSection(candidates: CandidateHome[]) {
   if (candidates.length === 0) {
-    return ["No candidate zones generated."];
+    return ["No candidates scored."];
   }
 
   return candidates.flatMap((candidate, index) => [
@@ -172,6 +187,17 @@ function candidateSection(candidates: CandidateHome[]) {
     "",
     `- Score: ${candidate.score?.total ?? 0}/100 (${candidate.score?.band || "unscored"})`,
     `- Location: ${formatCoordinate(candidate.lat, candidate.lng)}`,
+    ...(candidate.address ? [`- Address: ${candidate.address}`] : []),
+    ...(candidate.price !== undefined
+      ? [
+          `- Housing price: ${formatCurrency(candidate.price)}${
+            candidate.tenure === "rent" ? " per month" : ""
+          }`,
+        ]
+      : []),
+    ...(candidate.listingSourceLabel
+      ? [`- Listing source: ${candidate.listingSourceLabel} (${candidate.listingAccess || "unknown access"})`]
+      : []),
     ...scoreComponentLines(candidate.score),
     ...failedConstraintLines(candidate.score),
     ...assumptionLines(candidate.score),

@@ -32,6 +32,11 @@ type CandidateScoringInput = {
   limit?: number;
 };
 
+type ExistingCandidateScoringInput = Omit<CandidateScoringInput, "bounds"> & {
+  candidates: CandidateHome[];
+  maxHousingPrice?: number;
+};
+
 const AMENITY_TO_POI: Record<AmenityRequirement["category"], PoiCategory[]> = {
   coffee: ["coffee"],
   restaurant: ["restaurant"],
@@ -65,29 +70,56 @@ export function generateCandidateHomes({
   isochrones = [],
   limit = 12,
 }: CandidateScoringInput): CandidateHome[] {
-  const visiblePois = poiLayers.flatMap((layer) => (layer.visible ? layer.points : []));
-  const civicAssets = points.filter(hasAssetMetadata);
-  const candidates = makeViewportGrid(bounds).map((location, index) => {
-    const routeEvidence = getRouteEvidence(location, isochrones, civicAssets, profile);
-    const score = scoreCandidate(location, profile, visiblePois, civicAssets, routeEvidence);
-
-    return {
+  const candidates: CandidateHome[] = makeViewportGrid(bounds).map((location, index) => ({
       id: `candidate-${index + 1}-${location.lat.toFixed(5)}-${location.lng.toFixed(5)}`,
       label: `Candidate ${index + 1}`,
       source: "grid" as const,
       lat: location.lat,
       lng: location.lng,
-      score,
-    };
-  });
+    }));
 
-  return candidates
-    .sort((a, b) => (b.score?.total || 0) - (a.score?.total || 0))
-    .slice(0, limit)
+  return scoreCandidateHomes({
+    candidates,
+    profile,
+    poiLayers,
+    points,
+    isochrones,
+    limit,
+  })
     .map((candidate, index) => ({
       ...candidate,
       label: `Candidate ${index + 1}`,
     }));
+}
+
+export function scoreCandidateHomes({
+  candidates,
+  profile,
+  poiLayers,
+  points = [],
+  isochrones = [],
+  limit = 12,
+  maxHousingPrice,
+}: ExistingCandidateScoringInput): CandidateHome[] {
+  const visiblePois = poiLayers.flatMap((layer) => (layer.visible ? layer.points : []));
+  const civicAssets = points.filter(hasAssetMetadata);
+
+  return candidates
+    .map((candidate) => {
+      const routeEvidence = getRouteEvidence(candidate, isochrones, civicAssets, profile);
+      const score = scoreCandidate(
+        candidate,
+        profile,
+        visiblePois,
+        civicAssets,
+        routeEvidence,
+        maxHousingPrice,
+      );
+
+      return { ...candidate, score };
+    })
+    .sort((left, right) => (right.score?.total || 0) - (left.score?.total || 0))
+    .slice(0, limit);
 }
 
 function makeViewportGrid(bounds: CandidateScoringInput["bounds"]) {
@@ -118,11 +150,12 @@ function makeViewportGrid(bounds: CandidateScoringInput["bounds"]) {
 }
 
 function scoreCandidate(
-  candidate: LatLng,
+  candidate: CandidateHome,
   profile: HouseholdProfile,
   pois: PointOfInterest[],
   civicAssets: MapPoint[],
   routeEvidence: RouteEvidence,
+  maxHousingPrice?: number,
 ): ScoreBreakdown {
   const componentScores: Record<keyof ScoreWeights, { score: number; explanation: string }> = {
     commute: scoreCommute(candidate, profile, routeEvidence),
@@ -130,10 +163,7 @@ function scoreCandidate(
     amenities: scoreAmenities(candidate, profile, pois),
     schools: scoreSchools(candidate, profile),
     healthcare: scoreHealthcare(candidate, profile, routeEvidence),
-    affordability: {
-      score: 50,
-      explanation: "Affordability is a placeholder until parcel, listing, or rent data is connected.",
-    },
+    affordability: scoreAffordability(candidate, maxHousingPrice),
     civicCapacity: scoreCivicCapacity(candidate, profile, civicAssets, routeEvidence),
     frictionPenalty: scoreFrictionPenalty(candidate, profile, pois),
   };
@@ -163,17 +193,49 @@ function scoreCandidate(
 
   const total = clamp(Math.round(weightedTotal / Math.max(1, activeWeight)), 0, 100);
 
+  const failedConstraints = findFailedConstraints(
+    candidate,
+    profile,
+    pois,
+    civicAssets,
+    routeEvidence,
+  );
+
+  if (
+    candidate.price !== undefined &&
+    maxHousingPrice !== undefined &&
+    candidate.price > maxHousingPrice
+  ) {
+    failedConstraints.push({
+      constraintType: "affordability",
+      label: "Housing budget",
+      explanation: `${formatCurrency(candidate.price)} exceeds the selected ${formatCurrency(
+        maxHousingPrice,
+      )} limit.`,
+    });
+  }
+
   return {
     total,
     band: scoreBand(total),
     components,
-    failedConstraints: findFailedConstraints(candidate, profile, pois, civicAssets, routeEvidence),
+    failedConstraints,
     assumptions: [
       {
-        id: "candidate-grid",
-        label: "Candidate grid",
-        value: "Generated from the current viewport using a 4 x 4 grid.",
-        source: "system",
+        id: "candidate-source",
+        label: candidate.source === "listing" ? "Housing candidate" : "Candidate grid",
+        value:
+          candidate.source === "listing"
+            ? `${candidate.listingSourceLabel || "Listing"} candidate at ${
+                candidate.price !== undefined ? formatCurrency(candidate.price) : "an unknown price"
+              }.`
+            : "Generated from the current viewport using a 4 x 4 grid.",
+        source:
+          candidate.source === "listing"
+            ? candidate.listingAccess === "user-provided"
+              ? "import"
+              : "listing-provider"
+            : "system",
       },
       {
         id: "straight-line-proxy",
@@ -220,6 +282,44 @@ function scoreCandidate(
       },
     ],
   };
+}
+
+function scoreAffordability(candidate: CandidateHome, maxHousingPrice?: number) {
+  if (candidate.price === undefined) {
+    return {
+      score: 50,
+      explanation: "No listing price is attached, so affordability remains neutral.",
+    };
+  }
+
+  if (maxHousingPrice === undefined) {
+    return {
+      score: 60,
+      explanation: `${formatCurrency(candidate.price)} is recorded, but no budget limit is active.`,
+    };
+  }
+
+  const ratio = candidate.price / Math.max(1, maxHousingPrice);
+  const score =
+    ratio <= 0.8 ? 100 : ratio <= 1 ? 88 : ratio <= 1.1 ? 65 : ratio <= 1.25 ? 35 : 0;
+
+  return {
+    score,
+    explanation:
+      ratio <= 1
+        ? `${formatCurrency(candidate.price)} is within the selected ${formatCurrency(
+            maxHousingPrice,
+          )} limit.`
+        : `${formatCurrency(candidate.price)} is ${Math.round((ratio - 1) * 100)}% above the selected limit.`,
+  };
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 function scoreCommute(candidate: LatLng, profile: HouseholdProfile, routeEvidence: RouteEvidence) {

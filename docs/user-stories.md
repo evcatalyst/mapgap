@@ -70,3 +70,53 @@ Success criteria:
 - The drawer exposes the Valhalla secret field.
 - Generate remains visible after the secret is entered.
 - Generated rings and the location table remain reachable without layout collisions.
+
+## Story 8 - Guided relocation journey
+
+As a relocating household, I want to move through needs, homes, daily life, and
+comparison as separate steps, so I can make progress without understanding a GIS
+workbench.
+
+Success criteria:
+- The map remains visible throughout the journey.
+- Step changes reset the panel to useful context on short phones.
+- Household, dual-career, and hospital on-call stories change deterministic inputs.
+- A user can skip or revisit a step without losing current-session evidence.
+
+## Story 9 - Housing overlay with honest provenance
+
+As a relocation user, I want housing candidates to look different from amenities
+and disclose how MapGap received them, so I do not mistake examples or imports for
+verified live inventory.
+
+Success criteria:
+- Housing uses price markers at neighborhood zoom and compact dots regionally.
+- Live, imported, and illustrative records have distinct source/access labels.
+- Illustrative records state that they are not real or available homes.
+- Zillow, Trulia, Craigslist, and MLS imports remain user-provided evidence.
+
+## Story 10 - Cost-controlled live listing search
+
+As the product operator, I want live listing calls to happen only after an
+explicit search and behind a server-side enable flag, so map panning and public
+traffic do not create uncontrolled provider charges.
+
+Success criteria:
+- Panning never triggers a listing request.
+- Map or filter changes visibly mark previous provider results as needing
+  refresh.
+- A live provider requires a server-side key and explicit enable flag.
+- Identical searches use a bounded TTL cache.
+- Live failure falls back to labeled examples rather than ambiguous stale data.
+
+## Story 11 - Transparent housing shortlist
+
+As a household or relocation advisor, I want saved homes scored against budget,
+anchors, and visible daily-life evidence, so I can explain why one candidate is a
+better fit and what assumptions remain.
+
+Success criteria:
+- Only user-saved homes enter the listing comparison.
+- Affordability uses the recorded price and selected budget.
+- Over-budget homes produce a visible failed constraint.
+- The exported brief includes price, address, source access mode, and caveats.

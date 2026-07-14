@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Car,
@@ -8,10 +8,12 @@ import {
   Database,
   Download,
   Library,
+  Layers3,
   List,
   Loader2,
   MapPin,
   Navigation,
+  Plus,
   RotateCcw,
   Route,
   Search,
@@ -49,9 +51,12 @@ import type {
   ServicePointSource,
 } from "../../types";
 import { MapCanvas } from "../map/MapCanvas";
+import { IsochroneLayer } from "../map/IsochroneLayer";
+import { RasterIsochroneLayer } from "../map/RasterIsochroneLayer";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { ServicePointMarkers } from "./ServicePointMarkers";
+import { V2LayerDrawer, type V2MapLayer } from "./V2LayerDrawer";
 
 const CATEGORY_OPTIONS: Array<{
   id: ServicePointCategory;
@@ -198,6 +203,9 @@ export function V2PublicDemoShell() {
     DEFAULT_WALK_REACH_MINUTES,
   );
   const [boostedPointIds, setBoostedPointIds] = useState(getStoredBoostedPointIds);
+  const [mapLayers, setMapLayers] = useState<V2MapLayer[]>([]);
+  const [layerDrawerOpen, setLayerDrawerOpen] = useState(false);
+  const [currentSavedLayerId, setCurrentSavedLayerId] = useState<string | null>(null);
   const [pointsState, setPointsState] = useState<PointsState>(EMPTY_POINTS_STATE);
   const [requestStatus, setRequestStatus] = useState<AsyncStatus>("idle");
   const [requestError, setRequestError] = useState<string | undefined>();
@@ -212,6 +220,7 @@ export function V2PublicDemoShell() {
   const mapBounds = useMapIsoStore((state) => state.mapBounds);
   const status = useMapIsoStore((state) => state.status);
   const settings = useMapIsoStore((state) => state.settings);
+  const isochrones = useMapIsoStore((state) => state.isochrones);
   const clearIsochrones = useMapIsoStore((state) => state.clearIsochrones);
   const refreshApiStatus = useMapIsoStore((state) => state.refreshApiStatus);
   const setMapJumpTarget = useMapIsoStore((state) => state.setMapJumpTarget);
@@ -219,7 +228,9 @@ export function V2PublicDemoShell() {
 
   const activeBounds = mapBounds || FALLBACK_BOUNDS;
   const mapCenter = useMemo(() => getBoundsCenter(activeBounds), [activeBounds]);
-  const selectedPoint = pointsState.points.find((point) => point.id === selectedPointId);
+  const selectedPoint =
+    pointsState.points.find((point) => point.id === selectedPointId) ||
+    mapLayers.flatMap((layer) => layer.points).find((point) => point.id === selectedPointId);
   const routingAvailable = status.apiCapabilities.openRouteService || status.apiCapabilities.valhalla;
   const selectedCategoryLabel = selectedCategory
     ? selectedLabel || SERVICE_POINT_CATEGORY_LABELS[selectedCategory]
@@ -232,6 +243,10 @@ export function V2PublicDemoShell() {
 
   useEffect(() => {
     drawerModeRef.current = drawerMode;
+
+    if (drawerMode !== "closed") {
+      setLayerDrawerOpen(false);
+    }
 
     if (previousDrawerModeRef.current !== "closed" && drawerMode === "closed") {
       window.requestAnimationFrame(() => fabRef.current?.focus());
@@ -377,6 +392,7 @@ export function V2PublicDemoShell() {
     setSelectedLabel(nextLabel);
     setSelectedQuery(cleanedQuery);
     setSelectedPointId(null);
+    setCurrentSavedLayerId(null);
     setDrawerModeWithHistory("resultsPeek");
     setRequestStatus("loading");
     setRequestError(undefined);
@@ -440,13 +456,18 @@ export function V2PublicDemoShell() {
   }
 
   function selectNextPoint() {
-    if (pointsState.points.length === 0) {
+    const selectedLayer = mapLayers.find((layer) =>
+      layer.points.some((point) => point.id === selectedPointId),
+    );
+    const availablePoints = selectedLayer?.points || pointsState.points;
+
+    if (availablePoints.length === 0) {
       return;
     }
 
-    const selectedIndex = pointsState.points.findIndex((point) => point.id === selectedPointId);
-    const nextIndex = selectedIndex < 0 ? 0 : (selectedIndex + 1) % pointsState.points.length;
-    selectPoint(pointsState.points[nextIndex]);
+    const selectedIndex = availablePoints.findIndex((point) => point.id === selectedPointId);
+    const nextIndex = selectedIndex < 0 ? 0 : (selectedIndex + 1) % availablePoints.length;
+    selectPoint(availablePoints[nextIndex]);
   }
 
   function resetNearbySearch() {
@@ -455,6 +476,7 @@ export function V2PublicDemoShell() {
     setSelectedLabel(undefined);
     setSelectedQuery(undefined);
     setSelectedPointId(null);
+    setCurrentSavedLayerId(null);
     setHeatmapMode("off");
     setWalkReachMinutes(DEFAULT_WALK_REACH_MINUTES);
     setPointsState(EMPTY_POINTS_STATE);
@@ -591,6 +613,99 @@ export function V2PublicDemoShell() {
     });
   }
 
+  function addCurrentResultsAsLayer() {
+    if (pointsState.points.length === 0 || !selectedCategoryLabel) {
+      toast.error("Search and refine some places before adding a layer.");
+      return;
+    }
+
+    const layerId = `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const matchingPointIds = new Set(pointsState.points.map((point) => point.id));
+    const layerIsochrones = isochrones.filter((feature) =>
+      matchingPointIds.has(feature.properties.pointId),
+    );
+    const duplicateCount = mapLayers.filter((layer) =>
+      layer.name.startsWith(selectedCategoryLabel),
+    ).length;
+    const layerName =
+      duplicateCount > 0 ? `${selectedCategoryLabel} ${duplicateCount + 1}` : selectedCategoryLabel;
+
+    setMapLayers((current) => [
+      ...current,
+      {
+        id: layerId,
+        name: layerName,
+        points: pointsState.points,
+        isochrones: layerIsochrones,
+        heatmapMode,
+        walkReachMinutes,
+        visible: true,
+        heatVisible: layerIsochrones.length > 0,
+        expanded: true,
+      },
+    ]);
+    setCurrentSavedLayerId(layerId);
+    setHeatmapMode("off");
+    clearIsochrones();
+    setDrawerModeWithHistory("closed", { replace: true });
+    setLayerDrawerOpen(true);
+  }
+
+  function updateMapLayer(layerId: string, update: (layer: V2MapLayer) => V2MapLayer) {
+    setMapLayers((current) =>
+      current.map((layer) => (layer.id === layerId ? update(layer) : layer)),
+    );
+  }
+
+  function deleteMapLayer(layerId: string) {
+    setMapLayers((current) => current.filter((layer) => layer.id !== layerId));
+
+    if (currentSavedLayerId === layerId) {
+      setCurrentSavedLayerId(null);
+      setPointsState(EMPTY_POINTS_STATE);
+      setSelectedCategory(null);
+      setSelectedLabel(undefined);
+      setSelectedQuery(undefined);
+      setSelectedPointId(null);
+      setRequestStatus("idle");
+      clearSearchUrl();
+    }
+  }
+
+  function deletePointFromLayer(layerId: string, pointId: string) {
+    updateMapLayer(layerId, (layer) => ({
+      ...layer,
+      points: layer.points.filter((point) => point.id !== pointId),
+      isochrones: layer.isochrones.filter((feature) => feature.properties.pointId !== pointId),
+    }));
+
+    if (currentSavedLayerId === layerId) {
+      setPointsState((current) => ({
+        ...current,
+        points: current.points.filter((point) => point.id !== pointId),
+      }));
+    }
+
+    if (selectedPointId === pointId) {
+      setSelectedPointId(null);
+    }
+  }
+
+  function moveMapLayer(layerId: string, direction: -1 | 1) {
+    setMapLayers((current) => {
+      const index = current.findIndex((layer) => layer.id === layerId);
+      const nextIndex = index + direction;
+
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  }
+
   function exportResults(scope: "selected" | "all") {
     const points = scope === "selected" && selectedPoint ? [selectedPoint] : pointsState.points;
 
@@ -621,6 +736,18 @@ export function V2PublicDemoShell() {
       ? `${selectedCategoryLabel} nearby`
       : "Explore Nearby";
 
+  function openLayerDrawer() {
+    setDrawerModeWithHistory("closed", { replace: true });
+    setLayerDrawerOpen(true);
+  }
+
+  function openCurrentResultsFromLayers() {
+    setLayerDrawerOpen(false);
+    setDrawerModeWithHistory(
+      selectedCategory && pointsState.points.length > 0 ? "resultsPeek" : "categoryPicker",
+    );
+  }
+
   return (
     <main className="mapgap-v2-shell relative h-dvh min-h-screen overflow-hidden bg-neutral-100 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50">
       <MapCanvas
@@ -636,14 +763,77 @@ export function V2PublicDemoShell() {
         showLegends={heatmapMode !== "off"}
         showRegionLabel={false}
       >
-        <ServicePointMarkers
-          points={pointsState.points}
-          selectedPointId={selectedPointId}
-          onSelect={selectPoint}
-        />
+        {mapLayers.map((layer, index) =>
+          layer.visible ? (
+            <Fragment key={layer.id}>
+              {layer.heatVisible && layer.isochrones.length > 0 && (
+                <>
+                  <RasterIsochroneLayer
+                    features={layer.isochrones}
+                    zIndex={300 + mapLayers.length - index}
+                  />
+                  <IsochroneLayer features={layer.isochrones} />
+                </>
+              )}
+              <ServicePointMarkers
+                compact
+                points={layer.points}
+                selectedPointId={selectedPointId}
+                onSelect={(point) => {
+                  setLayerDrawerOpen(false);
+                  selectPoint(point);
+                }}
+              />
+            </Fragment>
+          ) : null,
+        )}
+        {!currentSavedLayerId && (
+          <ServicePointMarkers
+            points={pointsState.points}
+            selectedPointId={selectedPointId}
+            onSelect={selectPoint}
+          />
+        )}
       </MapCanvas>
 
-      <PublicTopBar routingAvailable={routingAvailable} />
+      <PublicTopBar
+        layerCount={mapLayers.length}
+        onOpenLayers={openLayerDrawer}
+        routingAvailable={routingAvailable}
+      />
+
+      <V2LayerDrawer
+        activeSearch={
+          selectedCategory && selectedCategoryLabel && pointsState.points.length > 0
+            ? {
+                count: pointsState.points.length,
+                label: selectedCategoryLabel,
+                saved: Boolean(currentSavedLayerId),
+              }
+            : undefined
+        }
+        layers={mapLayers}
+        open={layerDrawerOpen}
+        onAddCurrentResults={addCurrentResultsAsLayer}
+        onClose={() => setLayerDrawerOpen(false)}
+        onDeleteLayer={deleteMapLayer}
+        onDeletePoint={deletePointFromLayer}
+        onMoveLayer={moveMapLayer}
+        onOpenCurrentResults={openCurrentResultsFromLayers}
+        onSelectPoint={(point) => {
+          setLayerDrawerOpen(false);
+          selectPoint(point);
+        }}
+        onToggleExpanded={(layerId) =>
+          updateMapLayer(layerId, (layer) => ({ ...layer, expanded: !layer.expanded }))
+        }
+        onToggleHeat={(layerId) =>
+          updateMapLayer(layerId, (layer) => ({ ...layer, heatVisible: !layer.heatVisible }))
+        }
+        onToggleVisible={(layerId) =>
+          updateMapLayer(layerId, (layer) => ({ ...layer, visible: !layer.visible }))
+        }
+      />
 
       {fabVisible && (
         <button
@@ -681,6 +871,7 @@ export function V2PublicDemoShell() {
           onCategorySelect={chooseCategory}
           onClose={() => setDrawerModeWithHistory("closed", { replace: true })}
           onExport={exportResults}
+          onAddLayer={addCurrentResultsAsLayer}
           onHeatmapChange={updateHeatmap}
           onTogglePointBoost={togglePointBoost}
           onToggleResultExtension={toggleResultExtension}
@@ -691,6 +882,7 @@ export function V2PublicDemoShell() {
           onSetDrawerMode={setDrawerModeWithHistory}
           onSelectNextPoint={selectNextPoint}
           points={pointsState.points}
+          resultsSavedAsLayer={Boolean(currentSavedLayerId)}
           requestError={requestError}
           requestStatus={requestStatus}
           isSearchStale={isSearchStale}
@@ -707,7 +899,15 @@ export function V2PublicDemoShell() {
   );
 }
 
-function PublicTopBar({ routingAvailable }: { routingAvailable: boolean }) {
+function PublicTopBar({
+  layerCount,
+  onOpenLayers,
+  routingAvailable,
+}: {
+  layerCount: number;
+  onOpenLayers: () => void;
+  routingAvailable: boolean;
+}) {
   return (
     <div className="mapgap-v2-topbar pointer-events-none absolute left-[5.25rem] right-3 z-[1100] flex items-start justify-between gap-3 sm:left-4 sm:right-4">
       <div className="pointer-events-auto inline-flex min-w-0 max-w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/95 px-3 py-2 shadow-lg shadow-neutral-950/10 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
@@ -729,13 +929,27 @@ function PublicTopBar({ routingAvailable }: { routingAvailable: boolean }) {
           title={routingAvailable ? "Heat ready" : "POIs only"}
         />
       </div>
-      <Badge
-        variant={routingAvailable ? "success" : "warning"}
-        className="pointer-events-auto hidden h-8 gap-1 rounded-full bg-white/95 shadow-lg shadow-neutral-950/10 backdrop-blur dark:bg-neutral-950/90 sm:inline-flex"
-      >
-        <Database className="h-3.5 w-3.5" aria-hidden="true" />
-        {routingAvailable ? "Heat ready" : "POIs only"}
-      </Badge>
+      <div className="pointer-events-auto flex shrink-0 items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-10 rounded-full bg-white/95 px-3 shadow-lg shadow-neutral-950/10 backdrop-blur dark:bg-neutral-950/90"
+          onClick={onOpenLayers}
+          aria-label={`Open map layers${layerCount > 0 ? `, ${layerCount} saved` : ""}`}
+        >
+          <Layers3 className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Layers</span>
+          {layerCount > 0 && <span aria-hidden="true">{layerCount}</span>}
+        </Button>
+        <Badge
+          variant={routingAvailable ? "success" : "warning"}
+          className="hidden h-8 gap-1 rounded-full bg-white/95 shadow-lg shadow-neutral-950/10 backdrop-blur dark:bg-neutral-950/90 sm:inline-flex"
+        >
+          <Database className="h-3.5 w-3.5" aria-hidden="true" />
+          {routingAvailable ? "Heat ready" : "POIs only"}
+        </Badge>
+      </div>
     </div>
   );
 }
@@ -751,6 +965,7 @@ type BottomDrawerProps = {
   isGeneratingIsochrones: boolean;
   isSearchStale: boolean;
   mapCenter?: { lat: number; lng: number };
+  onAddLayer: () => void;
   onCategorySelect: (category: ServicePointCategory, query?: string) => void;
   onClose: () => void;
   onExport: (scope: "selected" | "all") => void;
@@ -768,6 +983,7 @@ type BottomDrawerProps = {
   points: ServicePoint[];
   requestError?: string;
   requestStatus: AsyncStatus;
+  resultsSavedAsLayer: boolean;
   selectedPoint?: ServicePoint;
   extensions: ServicePointExtension[];
   sources: ServicePointSource[];
@@ -786,6 +1002,7 @@ function BottomDrawer({
   isGeneratingIsochrones,
   isSearchStale,
   mapCenter,
+  onAddLayer,
   onCategorySelect,
   onClose,
   onExport,
@@ -803,6 +1020,7 @@ function BottomDrawer({
   points,
   requestError,
   requestStatus,
+  resultsSavedAsLayer,
   selectedPoint,
   extensions,
   sources,
@@ -919,6 +1137,7 @@ function BottomDrawer({
             heatmapMode={heatmapMode}
             isGeneratingIsochrones={isGeneratingIsochrones}
             mapCenter={mapCenter}
+            onAddLayer={onAddLayer}
             onExport={onExport}
             onHeatmapChange={onHeatmapChange}
             onTogglePointBoost={onTogglePointBoost}
@@ -932,6 +1151,7 @@ function BottomDrawer({
             points={points}
             requestError={requestError}
             requestStatus={requestStatus}
+            resultsSavedAsLayer={resultsSavedAsLayer}
             isSearchStale={isSearchStale}
             showList={drawerMode !== "resultsPeek"}
             sources={sources}
@@ -1052,6 +1272,7 @@ function ResultsContent({
   isGeneratingIsochrones,
   isSearchStale,
   mapCenter,
+  onAddLayer,
   onExport,
   onHeatmapChange,
   onTogglePointBoost,
@@ -1065,6 +1286,7 @@ function ResultsContent({
   points,
   requestError,
   requestStatus,
+  resultsSavedAsLayer,
   showList,
   sources,
   extensions,
@@ -1080,6 +1302,7 @@ function ResultsContent({
   isGeneratingIsochrones: boolean;
   isSearchStale: boolean;
   mapCenter?: { lat: number; lng: number };
+  onAddLayer: () => void;
   onExport: (scope: "selected" | "all") => void;
   onHeatmapChange: (mode: HeatmapMode) => void;
   onTogglePointBoost: (pointId: string) => void;
@@ -1093,6 +1316,7 @@ function ResultsContent({
   points: ServicePoint[];
   requestError?: string;
   requestStatus: AsyncStatus;
+  resultsSavedAsLayer: boolean;
   showList: boolean;
   sources: ServicePointSource[];
   extensions: ServicePointExtension[];
@@ -1134,6 +1358,22 @@ function ResultsContent({
             </Badge>
           ))}
         </div>
+
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          className="mt-3 w-full justify-center"
+          disabled={points.length === 0 || resultsSavedAsLayer}
+          onClick={onAddLayer}
+        >
+          {resultsSavedAsLayer ? (
+            <Layers3 className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          )}
+          {resultsSavedAsLayer ? "Saved to layers" : "Add as layer"}
+        </Button>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">

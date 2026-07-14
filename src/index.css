@@ -68,6 +68,11 @@ select {
   min-height: 44px;
 }
 
+.mapgap-v2-layer-drawer {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @media (min-width: 640px) {
   .mapgap-v2-fab {
     bottom: calc(env(safe-area-inset-bottom) + 1rem);
@@ -203,6 +208,77 @@ select {
 
 .dark .mapgap-service-marker {
   border-color: #171717;
+}
+
+.mapgap-housing-marker-shell {
+  background: transparent;
+  border: 0;
+}
+
+.mapgap-housing-marker {
+  align-items: center;
+  background: white;
+  border: 2px solid var(--housing-marker-color);
+  border-radius: 5px;
+  box-shadow: 0 2px 7px rgb(15 23 42 / 28%);
+  color: #171717;
+  display: flex;
+  font-size: 11px;
+  font-weight: 700;
+  height: 30px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 58px;
+  padding: 0 6px;
+  position: relative;
+  white-space: nowrap;
+}
+
+.mapgap-housing-marker::after {
+  background: var(--housing-marker-color);
+  bottom: -5px;
+  content: "";
+  height: 7px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%) rotate(45deg);
+  width: 7px;
+  z-index: -1;
+}
+
+.mapgap-housing-marker--compact {
+  background: var(--housing-marker-color);
+  border: 3px solid white;
+  border-radius: 50%;
+  height: 14px;
+  min-width: 14px;
+  padding: 0;
+  width: 14px;
+}
+
+.mapgap-housing-marker--compact::after {
+  display: none;
+}
+
+.mapgap-housing-marker--selected {
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 95%),
+    0 0 0 6px var(--housing-marker-color),
+    0 5px 14px rgb(15 23 42 / 32%);
+  transform: scale(1.08);
+}
+
+.mapgap-housing-marker--shortlisted:not(.mapgap-housing-marker--compact) {
+  background: #ecfdf5;
+}
+
+.dark .mapgap-housing-marker {
+  background: #171717;
+  color: #fafafa;
+}
+
+.dark .mapgap-housing-marker--shortlisted:not(.mapgap-housing-marker--compact) {
+  background: #022c22;
 }
 
 .mapgap-candidate-marker-shell {

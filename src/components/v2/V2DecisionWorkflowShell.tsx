@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ArrowRight,
   Building2,
   ChevronDown,
   FileUp,
   Grid2X2,
+  Home,
   Layers3,
+  ListChecks,
   MapPin,
   PanelRightClose,
   PanelRightOpen,
+  SlidersHorizontal,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { makeScenarioProfile } from "../../domain/profileDefaults";
@@ -30,8 +34,27 @@ import { ProfilePanel } from "../profile/ProfilePanel";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DecisionAnchorMarkers } from "./DecisionAnchorMarkers";
+import { HousingListingMarkers } from "./HousingListingMarkers";
+import { RelocationCompareStep } from "./RelocationCompareStep";
+import {
+  RelocationHousingStep,
+  useHousingJourney,
+  type HousingJourney,
+} from "./RelocationHousingStep";
 
 export type V2DecisionWorkflow = "relocate" | "audit";
+type RelocationStep = "needs" | "homes" | "daily-life" | "compare";
+
+const relocationSteps: Array<{
+  id: RelocationStep;
+  label: string;
+  icon: typeof MapPin;
+}> = [
+  { id: "needs", label: "Needs", icon: SlidersHorizontal },
+  { id: "homes", label: "Homes", icon: Home },
+  { id: "daily-life", label: "Daily life", icon: Layers3 },
+  { id: "compare", label: "Compare", icon: ListChecks },
+];
 
 const relocationScenarios: Array<{ value: ScenarioId; label: string }> = [
   { value: "relocation-household", label: "Household relocation" },
@@ -52,6 +75,9 @@ const evidenceCategories: Array<{
 
 export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWorkflow }) {
   const [panelOpen, setPanelOpen] = useState(true);
+  const [relocationStep, setRelocationStep] = useState<RelocationStep>("needs");
+  const panelScrollRef = useRef<HTMLDivElement>(null);
+  const housingJourney = useHousingJourney();
   const applyScenario = useMapIsoStore((state) => state.applyScenario);
   const clearCandidateHomes = useMapIsoStore((state) => state.clearCandidateHomes);
   const clearIsochrones = useMapIsoStore((state) => state.clearIsochrones);
@@ -69,7 +95,12 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
     jumpToProfile(nextProfile.anchors, setMapJumpTarget);
   }, [applyScenario, clearCandidateHomes, clearIsochrones, clearPoiLayers, initialScenario, setMapJumpTarget]);
 
+  useEffect(() => {
+    panelScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [relocationStep, workflow]);
+
   const title = workflow === "relocate" ? "Relocation decision brief" : "Civic capacity pilot";
+  const compactTitle = workflow === "relocate" ? "Relocation brief" : "Civic pilot";
 
   return (
     <main className="mapgap-v2-shell relative h-dvh min-h-screen overflow-hidden bg-neutral-100 text-neutral-950 dark:bg-neutral-950 dark:text-neutral-50">
@@ -82,6 +113,14 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
         showRegionLabel={false}
       >
         <DecisionAnchorMarkers anchors={profile.anchors} />
+        {workflow === "relocate" && relocationStep !== "compare" && (
+          <HousingListingMarkers
+            listings={housingJourney.listings}
+            selectedListingId={housingJourney.selectedListingId}
+            shortlistedIds={housingJourney.shortlistedIds}
+            onSelect={housingJourney.selectListing}
+          />
+        )}
       </MapCanvas>
 
       <header className="mapgap-v2-topbar pointer-events-none absolute left-[5.25rem] right-3 z-[1100] flex items-start justify-between gap-3 sm:left-4 sm:right-4">
@@ -94,7 +133,10 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
             <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           </a>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{title}</div>
+            <div className="truncate text-sm font-semibold">
+              <span className="sm:hidden">{compactTitle}</span>
+              <span className="hidden sm:inline">{title}</span>
+            </div>
             <div className="hidden truncate text-xs text-neutral-500 sm:block dark:text-neutral-400">
               {profile.regionLabel}
             </div>
@@ -121,9 +163,14 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
         >
           <div className="flex min-h-14 items-center justify-between gap-3 border-b border-neutral-200 px-4 dark:border-neutral-800">
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold">{title}</h1>
+              <h1 className="truncate text-base font-semibold">
+                <span className="sm:hidden">{compactTitle}</span>
+                <span className="hidden sm:inline">{title}</span>
+              </h1>
               <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                {workflow === "relocate" ? "Profile · evidence · candidates" : "Assets · reach · evidence memo"}
+                {workflow === "relocate"
+                  ? relocationSteps.find((step) => step.id === relocationStep)?.label
+                  : "Assets · reach · evidence memo"}
               </p>
             </div>
             <Button
@@ -138,8 +185,19 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
             </Button>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-            {workflow === "relocate" ? <RelocationWorkflow /> : <AuditWorkflow />}
+          <div
+            ref={panelScrollRef}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+          >
+            {workflow === "relocate" ? (
+              <RelocationWorkflow
+                step={relocationStep}
+                onStepChange={setRelocationStep}
+                housingJourney={housingJourney}
+              />
+            ) : (
+              <AuditWorkflow />
+            )}
           </div>
         </aside>
       )}
@@ -147,43 +205,144 @@ export function V2DecisionWorkflowShell({ workflow }: { workflow: V2DecisionWork
   );
 }
 
-function RelocationWorkflow() {
+function RelocationWorkflow({
+  step,
+  onStepChange,
+  housingJourney,
+}: {
+  step: RelocationStep;
+  onStepChange: (step: RelocationStep) => void;
+  housingJourney: HousingJourney;
+}) {
   const profile = useMapIsoStore((state) => state.decisionProfile);
   const applyScenario = useMapIsoStore((state) => state.applyScenario);
+  const clearCandidateHomes = useMapIsoStore((state) => state.clearCandidateHomes);
   const setMapJumpTarget = useMapIsoStore((state) => state.setMapJumpTarget);
 
   function changeScenario(scenario: ScenarioId) {
     const nextProfile = makeScenarioProfile(scenario);
     applyScenario(scenario);
+    clearCandidateHomes();
+    housingJourney.clearHousing();
     jumpToProfile(nextProfile.anchors, setMapJumpTarget);
   }
 
+  const currentStepIndex = relocationSteps.findIndex((item) => item.id === step);
+  const previousStep = relocationSteps[currentStepIndex - 1]?.id;
+  const nextStep = relocationSteps[currentStepIndex + 1]?.id;
+
   return (
     <>
-      <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-        <label htmlFor="v2-relocation-scenario" className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-          Household scenario
-        </label>
-        <div className="relative mt-2">
-          <select
-            id="v2-relocation-scenario"
-            value={profile.scenarioId}
-            onChange={(event) => changeScenario(event.target.value as ScenarioId)}
-            className="h-11 w-full appearance-none rounded-md border border-neutral-300 bg-white px-3 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+      <nav
+        className="sticky top-0 z-20 grid grid-cols-4 gap-1 rounded-lg border border-neutral-200 bg-white p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-950"
+        aria-label="Relocation steps"
+      >
+        {relocationSteps.map((item, index) => {
+          const Icon = item.icon;
+          const active = item.id === step;
+          const completed = index < currentStepIndex;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md px-1 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${
+                active
+                  ? "bg-emerald-700 text-white"
+                  : completed
+                    ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                    : "text-neutral-500 hover:bg-neutral-50 dark:text-neutral-400 dark:hover:bg-neutral-900"
+              }`}
+              onClick={() => onStepChange(item.id)}
+              aria-current={active ? "step" : undefined}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              <span className="truncate">{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {step === "needs" && (
+        <>
+          <section className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+            <div>
+              <h2 className="text-sm font-semibold">Start with the household decision</h2>
+              <p className="mt-1 text-xs leading-4 text-neutral-500 dark:text-neutral-400">
+                The story changes the default anchors, required constraints, and score weights.
+              </p>
+            </div>
+            <label
+              htmlFor="v2-relocation-scenario"
+              className="mt-3 block text-xs font-semibold text-neutral-600 dark:text-neutral-300"
+            >
+              Household scenario
+            </label>
+            <div className="relative mt-1">
+              <select
+                id="v2-relocation-scenario"
+                value={profile.scenarioId}
+                onChange={(event) => changeScenario(event.target.value as ScenarioId)}
+                className="h-11 w-full appearance-none rounded-md border border-neutral-300 bg-white px-3 pr-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+              >
+                {relocationScenarios.map((scenario) => (
+                  <option key={scenario.value} value={scenario.value}>
+                    {scenario.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-neutral-500"
+                aria-hidden="true"
+              />
+            </div>
+          </section>
+          <RelocationInputs />
+        </>
+      )}
+
+      {step === "homes" && <RelocationHousingStep journey={housingJourney} />}
+
+      {step === "daily-life" && (
+        <>
+          <section className="rounded-lg border border-neutral-200 bg-white p-3 text-xs leading-4 text-neutral-600 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300">
+            Add only the evidence that matters to this household. Candidate scores use visible
+            layers; missing layers remain explicit assumptions.
+          </section>
+          <DailyLifeEvidence />
+        </>
+      )}
+
+      {step === "compare" && (
+        <RelocationCompareStep
+          journey={housingJourney}
+          onBackToHomes={() => onStepChange("homes")}
+        />
+      )}
+
+      <div className="flex items-center justify-between gap-2 pb-1">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={!previousStep}
+          onClick={() => previousStep && onStepChange(previousStep)}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back
+        </Button>
+        {nextStep && (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={() => onStepChange(nextStep)}
           >
-            {relocationScenarios.map((scenario) => (
-              <option key={scenario.value} value={scenario.value}>
-                {scenario.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-4 w-4 text-neutral-500" aria-hidden="true" />
-        </div>
-      </section>
-      <RelocationInputs />
-      <DailyLifeEvidence />
-      <ProfilePanel compact />
-      <CandidateZonesPanel compact />
+            Continue
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        )}
+      </div>
     </>
   );
 }
