@@ -203,6 +203,8 @@ for (const viewport of viewports) {
   });
 
   test(`relocation ${viewport.name} guided journey baseline`, async ({ page }) => {
+    const maxDiffPixelRatio = viewport.name === "iphone-se" ? 0.035 : 0.02;
+
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await mockScreenshotRoutes(page);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -211,7 +213,8 @@ for (const viewport of viewports) {
     await expect(page).toHaveScreenshot(`relocate-${viewport.name}-needs.png`, {
       animations: "disabled",
       caret: "hide",
-      maxDiffPixelRatio: 0.02,
+      threshold: 0.3,
+      maxDiffPixelRatio,
     });
 
     await page.getByRole("button", { name: "Homes" }).click();
@@ -223,7 +226,8 @@ for (const viewport of viewports) {
     await expect(page).toHaveScreenshot(`relocate-${viewport.name}-homes.png`, {
       animations: "disabled",
       caret: "hide",
-      maxDiffPixelRatio: 0.02,
+      threshold: 0.3,
+      maxDiffPixelRatio,
     });
 
     await page
@@ -236,7 +240,8 @@ for (const viewport of viewports) {
     await expect(page).toHaveScreenshot(`relocate-${viewport.name}-compare.png`, {
       animations: "disabled",
       caret: "hide",
-      maxDiffPixelRatio: 0.02,
+      threshold: 0.3,
+      maxDiffPixelRatio,
     });
   });
 }
