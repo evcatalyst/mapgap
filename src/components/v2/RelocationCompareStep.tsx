@@ -81,8 +81,8 @@ export function RelocationCompareStep({
     <div className="space-y-3" aria-label="Housing comparison">
       <section className="space-y-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <div className="min-w-0 flex-1">
+            <h2 className="flex items-center gap-2 whitespace-nowrap text-sm font-semibold">
               <ListChecks className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               Compare saved homes
             </h2>
@@ -90,7 +90,9 @@ export function RelocationCompareStep({
               Price, anchors, access evidence, and visible daily-life layers use explicit weights.
             </p>
           </div>
-          <Badge variant="outline">{shortlisted.length} saved</Badge>
+          <Badge className="shrink-0 whitespace-nowrap" variant="outline">
+            {shortlisted.length} saved
+          </Badge>
         </div>
 
         {shortlisted.length === 0 ? (

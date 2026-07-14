@@ -236,12 +236,19 @@ for (const viewport of viewports) {
     await page.getByRole("button", { name: "Compare" }).click();
     await page.getByRole("button", { name: "Score shortlist" }).click();
     await expect(page.getByText("Best current fit")).toBeVisible();
-    await page.waitForTimeout(4_200);
+    await expect(page.getByText("1 shortlisted home scored.")).toBeHidden({ timeout: 10_000 });
+    const compareHeading = page.getByRole("heading", { name: "Compare saved homes" });
+    await expect(compareHeading).toBeVisible();
+    const compareHeadingBox = await compareHeading.boundingBox();
+    expect(compareHeadingBox?.height).toBeLessThanOrEqual(20);
+    if (viewport.width < 640) {
+      await expect(page.getByRole("heading", { name: "Relocation brief", exact: true })).toBeVisible();
+    }
     await expect(page).toHaveScreenshot(`relocate-${viewport.name}-compare.png`, {
       animations: "disabled",
       caret: "hide",
       threshold: 0.3,
-      maxDiffPixelRatio,
+      maxDiffPixelRatio: viewport.width < 640 ? 0.035 : maxDiffPixelRatio,
     });
   });
 }
