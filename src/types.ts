@@ -14,7 +14,7 @@ export type MapBounds = {
 
 export type TransportMode = "driving-car" | "cycling-regular" | "foot-walking";
 
-export type RoutingProvider = "ors" | "valhalla";
+export type RoutingProvider = "ors" | "valhalla" | "synthetic" | "google";
 
 export type MobilityMode = "walk" | "bike" | "stroller" | "senior";
 
@@ -45,6 +45,8 @@ export type ThemeMode = "light" | "dark";
 export type ApiStatus = "unknown" | "ready" | "degraded" | "error";
 
 export type ApiCapabilities = {
+  synthetic?: boolean;
+  google?: boolean;
   openRouteService: boolean;
   valhalla: boolean;
   valhallaRequiresSecret: boolean;
@@ -81,6 +83,8 @@ export type PoiLayerSource = PoiSource | "mixed";
 export type ServicePointCategory = "laundry" | "coffee" | "grocery" | "library" | "custom";
 
 export type ServicePointSource =
+  | "nys_farmers_markets"
+  | "nys_retail_food_stores"
   | "google_places"
   | "ny_libraries"
   | "nj_libraries"
@@ -226,6 +230,10 @@ export type IsochroneFeature = Feature<Polygon | MultiPolygon, {
   mobilityMode: MobilityMode;
   transportMode: TransportMode;
   routingProvider: RoutingProvider;
+  mock?: boolean;
+  synthetic?: boolean;
+  notice?: string;
+  direction?: "FROM" | "TO";
   isochroneMode: IsochroneMode;
 }>;
 
@@ -275,6 +283,7 @@ export type AppStatus = {
   lastExportedAt?: string;
   geocodeStatusByPointId: Record<string, AsyncStatus>;
   generationError?: string;
+  generationSummary?: { requestCount: number; completedCount: number; warnings: string[] };
   exportStatus: AsyncStatus;
 };
 

@@ -47,9 +47,13 @@ export async function fetchApiHealth(): Promise<ApiHealth> {
     valhalla?: unknown;
     valhallaRequiresSecret?: unknown;
     openCage?: unknown;
+    synthetic?: unknown;
+    google?: unknown;
   };
 
   const capabilities = {
+    synthetic: data.synthetic === true,
+    google: data.google === true,
     openRouteService: Boolean(data.openRouteService),
     valhalla: Boolean(data.valhalla),
     valhallaRequiresSecret: Boolean(data.valhallaRequiresSecret),
@@ -70,7 +74,7 @@ export function getUnavailableApiHealth(): ApiHealth {
   return {
     status: "degraded",
     message:
-      "MapGap API proxy is unavailable. Use Netlify Dev locally or configure Netlify Functions in production.",
+      "MapGap API is unavailable. Start the configured API runtime and retry.",
     capabilities: DEFAULT_CAPABILITIES,
   };
 }

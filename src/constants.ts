@@ -51,16 +51,20 @@ export const TRANSPORT_DESCRIPTIONS: Record<TransportMode, string> = {
 };
 
 export const ROUTING_PROVIDER_LABELS: Record<RoutingProvider, string> = {
+  synthetic: "Synthetic demo",
+  google: "Google Isochrones",
   ors: "ORS",
   valhalla: "Valhalla beta",
 };
 
 export const ROUTING_PROVIDER_DESCRIPTIONS: Record<RoutingProvider, string> = {
+  synthetic: "Schematic boundaries for interface testing; not network travel times.",
+  google: "Google Isochrones stays disabled until credentials and usage requirements are ready.",
   ors: "OpenRouteService is the production-safe default provider.",
   valhalla: "Valhalla beta uses hosted or local hill-aware costing when configured.",
 };
 
-export const ROUTING_PROVIDER_ORDER: RoutingProvider[] = ["ors", "valhalla"];
+export const ROUTING_PROVIDER_ORDER: RoutingProvider[] = ["synthetic", "valhalla", "google", "ors"];
 
 export const MOBILITY_MODES: Record<MobilityMode, MobilityModeConfig> = {
   walk: {

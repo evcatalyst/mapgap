@@ -48,6 +48,9 @@ export function buildDecisionMemoMarkdown({
   return [
     "# MapGap Decision Memo",
     "",
+    ...(settings.routingProvider === "synthetic" || isochrones.some((feature) => feature.properties.mock)
+      ? ["**SYNTHETIC DEMO: schematic reach, not network travel time. Scores and shortlists are illustrative.**", ""]
+      : []),
     `Generated: ${generatedAt.toLocaleString()}`,
     `Profile: ${profile.name}`,
     `Region: ${profile.regionLabel}`,

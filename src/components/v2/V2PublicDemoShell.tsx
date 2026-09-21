@@ -208,6 +208,7 @@ export function V2PublicDemoShell() {
   const previousDrawerModeRef = useRef(drawerMode);
   const fabRef = useRef<HTMLButtonElement>(null);
   const restoredUrlSearchRef = useRef(false);
+  const heatmapRevision = useRef(0);
 
   const mapBounds = useMapIsoStore((state) => state.mapBounds);
   const status = useMapIsoStore((state) => state.status);
@@ -215,12 +216,12 @@ export function V2PublicDemoShell() {
   const clearIsochrones = useMapIsoStore((state) => state.clearIsochrones);
   const refreshApiStatus = useMapIsoStore((state) => state.refreshApiStatus);
   const setMapJumpTarget = useMapIsoStore((state) => state.setMapJumpTarget);
-  const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
+  const { generateIsochrones, cancelGeneration, isGeneratingIsochrones } = useIsochroneGenerator();
 
   const activeBounds = mapBounds || FALLBACK_BOUNDS;
   const mapCenter = useMemo(() => getBoundsCenter(activeBounds), [activeBounds]);
   const selectedPoint = pointsState.points.find((point) => point.id === selectedPointId);
-  const routingAvailable = status.apiCapabilities.openRouteService || status.apiCapabilities.valhalla;
+  const routingAvailable = Boolean(status.apiCapabilities.synthetic || status.apiCapabilities.openRouteService || status.apiCapabilities.valhalla);
   const selectedCategoryLabel = selectedCategory
     ? selectedLabel || SERVICE_POINT_CATEGORY_LABELS[selectedCategory]
     : undefined;
@@ -366,6 +367,8 @@ export function V2PublicDemoShell() {
     boundsOverride?: MapBounds,
     extensionsOverride: string[] = [],
   ) {
+    heatmapRevision.current++;
+    cancelGeneration();
     const boundsForSearch = boundsOverride || activeBounds;
     const cleanedQuery = query?.trim();
     const nextLabel =
@@ -450,6 +453,8 @@ export function V2PublicDemoShell() {
   }
 
   function resetNearbySearch() {
+    heatmapRevision.current++;
+    cancelGeneration();
     setDrawerModeWithHistory("closed", { replace: true });
     setSelectedCategory(null);
     setSelectedLabel(undefined);
@@ -509,6 +514,8 @@ export function V2PublicDemoShell() {
     nextMode: HeatmapMode,
     walkMinutesOverride: WalkReachMinutes = walkReachMinutes,
   ) {
+    const revision = ++heatmapRevision.current;
+    cancelGeneration();
     setHeatmapMode(nextMode);
     setHeatmapMessage(undefined);
 
@@ -524,12 +531,13 @@ export function V2PublicDemoShell() {
 
     let latestStatus = useMapIsoStore.getState().status;
 
-    if (!latestStatus.apiCapabilities.valhalla && !latestStatus.apiCapabilities.openRouteService) {
+    if (!latestStatus.apiCapabilities.synthetic && !latestStatus.apiCapabilities.valhalla && !latestStatus.apiCapabilities.openRouteService) {
       await refreshApiStatus();
       latestStatus = useMapIsoStore.getState().status;
     }
+    if (revision !== heatmapRevision.current) return;
 
-    const provider = latestStatus.apiCapabilities.valhalla ? "valhalla" : "ors";
+    const provider = latestStatus.apiCapabilities.synthetic ? "synthetic" : latestStatus.apiCapabilities.valhalla ? "valhalla" : "ors";
     const heatmapPoints = pointsState.points
       .slice(0, HEATMAP_POINT_LIMIT)
       .map((point, index) => servicePointToMapPoint(point, index));
@@ -562,6 +570,7 @@ export function V2PublicDemoShell() {
     });
 
     const latestError = useMapIsoStore.getState().status.generationError;
+    if (revision !== heatmapRevision.current) return;
 
     if (latestError) {
       setHeatmapMessage("Access heatmap unavailable. POIs are still shown.");
@@ -643,7 +652,7 @@ export function V2PublicDemoShell() {
         />
       </MapCanvas>
 
-      <PublicTopBar routingAvailable={routingAvailable} />
+      <PublicTopBar routingAvailable={routingAvailable} mock={Boolean(status.apiCapabilities.synthetic)} />
 
       {fabVisible && (
         <button
@@ -707,7 +716,8 @@ export function V2PublicDemoShell() {
   );
 }
 
-function PublicTopBar({ routingAvailable }: { routingAvailable: boolean }) {
+function PublicTopBar({ routingAvailable, mock }: { routingAvailable: boolean; mock: boolean }) {
+  const readinessLabel = mock ? "Mock ready" : routingAvailable ? "Heat ready" : "POIs only";
   return (
     <div className="mapgap-v2-topbar pointer-events-none absolute left-[5.25rem] right-3 z-[1100] flex items-start justify-between gap-3 sm:left-4 sm:right-4">
       <div className="pointer-events-auto inline-flex min-w-0 max-w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/95 px-3 py-2 shadow-lg shadow-neutral-950/10 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/90">
@@ -725,16 +735,16 @@ function PublicTopBar({ routingAvailable }: { routingAvailable: boolean }) {
             "ml-auto h-2.5 w-2.5 shrink-0 rounded-full sm:hidden",
             routingAvailable ? "bg-emerald-500" : "bg-amber-500",
           )}
-          aria-label={routingAvailable ? "Heat ready" : "POIs only"}
-          title={routingAvailable ? "Heat ready" : "POIs only"}
+          aria-label={readinessLabel}
+          title={readinessLabel}
         />
       </div>
       <Badge
         variant={routingAvailable ? "success" : "warning"}
-        className="pointer-events-auto hidden h-8 gap-1 rounded-full bg-white/95 shadow-lg shadow-neutral-950/10 backdrop-blur dark:bg-neutral-950/90 sm:inline-flex"
+        className={cn("pointer-events-auto hidden h-8 gap-1 rounded-full bg-white/95 shadow-lg shadow-neutral-950/10 backdrop-blur dark:bg-neutral-950/90 sm:inline-flex", mock && "md:mr-40")}
       >
         <Database className="h-3.5 w-3.5" aria-hidden="true" />
-        {routingAvailable ? "Heat ready" : "POIs only"}
+        {readinessLabel}
       </Badge>
     </div>
   );
@@ -845,7 +855,7 @@ function BottomDrawer({
           <span className="h-1.5 w-11 rounded-full bg-neutral-300 dark:bg-neutral-700" />
         </button>
       </div>
-      <header className="flex min-h-14 items-start justify-between gap-3 px-4 py-3 sm:px-5">
+      <header className="flex min-h-14 shrink-0 items-start justify-between gap-3 px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <h1 className="text-base font-semibold leading-tight tracking-normal text-neutral-950 sm:text-lg dark:text-neutral-50">
             {title}

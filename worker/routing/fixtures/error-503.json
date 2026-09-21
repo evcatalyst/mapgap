@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 503,
+    "status": "UNAVAILABLE",
+    "message": "Synthetic UNAVAILABLE fixture for MapGap UI testing."
+  }
+}

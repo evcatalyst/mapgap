@@ -36,11 +36,22 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Test Worker contracts and public source adapters
+        run: npm run test:worker
+
+      - name: Validate Cloudflare bundle without deployment
+        run: npx wrangler deploy --dry-run --outdir .wrangler/dry-run
+        env:
+          WRANGLER_SEND_METRICS: "false"
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       - name: Run interaction and visual regression tests
         run: npm run test:visual
+
+      - name: Run Cloudflare runtime and browser canary
+        run: npx playwright test -c playwright.cloudflare.config.ts
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
@@ -58,6 +69,14 @@ jobs:
         with:
           name: mapgap-playwright-report
           path: playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload runtime canary traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mapgap-cloudflare-test-results
+          path: test-results-cloudflare
           if-no-files-found: ignore
 
   deploy-preview:

@@ -14,6 +14,7 @@ import { PointMarkers } from "./PointMarkers";
 import { PoiMarkers } from "./PoiMarkers";
 import { RasterIsochroneLayer } from "./RasterIsochroneLayer";
 import { TimeRingLegend } from "./TimeRingLegend";
+import { RoutingNotice } from "./RoutingNotice";
 import type { MapBounds, MapPoint } from "../../types";
 
 const LIGHT_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -264,6 +265,8 @@ export function MapCanvas({
         {showLegacyData && showPoints && <PointMarkers points={points} />}
         {children}
       </MapContainer>
+
+      <RoutingNotice />
 
       {showRegionLabel && (
         <div className="pointer-events-none absolute left-20 top-4 z-[500] hidden rounded-lg border border-white/70 bg-white/95 px-3 py-2 text-xs font-medium text-neutral-700 shadow-sm backdrop-blur dark:border-neutral-700/80 dark:bg-neutral-950/90 dark:text-neutral-200 sm:block">

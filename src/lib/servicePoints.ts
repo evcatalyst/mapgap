@@ -15,8 +15,10 @@ export const SERVICE_POINT_CATEGORY_LABELS: Record<ServicePointCategory, string>
 };
 
 export const SERVICE_POINT_SOURCE_LABELS: Record<ServicePointSource, string> = {
+  nys_farmers_markets: "NYS Agriculture & Markets",
+  nys_retail_food_stores: "NYS Agriculture & Markets",
   google_places: "Google Places",
-  ny_libraries: "NY Open Data",
+  ny_libraries: "NYS libraries (ArcGIS)",
   nj_libraries: "NJ Open Data",
   hybrid: "Open Data",
   openstreetmap: "OpenStreetMap",

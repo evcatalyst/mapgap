@@ -11,7 +11,12 @@
     "typecheck": "tsc --noEmit",
     "test:visual": "playwright test",
     "test:live": "playwright test -c playwright.live.config.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:cloudflare": "npm run build && wrangler dev --ip 127.0.0.1 --port 8787 --inspector-port 9231",
+    "test:worker": "node --test tests/worker/*.test.mjs",
+    "test:cloudflare": "npm run build && playwright test -c playwright.cloudflare.config.ts",
+    "check:cloudflare": "npm run build && wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "deploy:cloudflare": "npm run build && wrangler deploy"
   },
   "engines": {
     "node": ">=22.12.0"
@@ -49,6 +54,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "wrangler": "4.136.1"
   }
 }

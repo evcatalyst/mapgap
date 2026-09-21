@@ -1,0 +1,12 @@
+{
+  "location": {
+    "latitude": 42.6526,
+    "longitude": -73.7562
+  },
+  "travelDuration": "600s",
+  "travelMode": "WALK",
+  "travelDirection": "TO",
+  "routingPreference": "TRAFFIC_UNAWARE",
+  "enableSmoothing": false,
+  "polygonFidelity": "MEDIUM"
+}
