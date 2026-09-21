@@ -65,7 +65,7 @@ const SCENARIOS: ScenarioId[] = [
 ];
 
 const TRANSPORT_MODES: TransportMode[] = ["driving-car", "cycling-regular", "foot-walking"];
-const ROUTING_PROVIDERS: RoutingProvider[] = ["ors", "valhalla"];
+const ROUTING_PROVIDERS: RoutingProvider[] = ["ors", "valhalla", "synthetic", "google"];
 const MOBILITY_MODES: MobilityMode[] = ["walk", "bike", "stroller", "senior"];
 const VIEW_MODES: ViewMode[] = ["all", "points", "isochrones"];
 const ISOCHRONE_MODES: IsochroneMode[] = ["unified", "individual", "overlap"];

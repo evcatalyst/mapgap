@@ -125,7 +125,10 @@ export function MapControlsPanel({
             Routing provider
           </p>
           <div className="grid grid-cols-2 gap-2">
-            {ROUTING_PROVIDER_ORDER.map((provider: RoutingProvider) => {
+            {ROUTING_PROVIDER_ORDER.filter((provider) => status.apiCapabilities.synthetic
+              ? provider !== "ors"
+              : provider === "ors" || provider === "valhalla" || (provider === "google" && status.apiCapabilities.google)
+            ).map((provider: RoutingProvider) => {
               const selected = settings.routingProvider === provider;
               const available = isRoutingProviderReady(status, provider);
 

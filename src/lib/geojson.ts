@@ -32,8 +32,10 @@ export function pointsToGeoJson(points: MapPoint[]): PointsFeatureCollection {
 }
 
 export function buildMapIsoGeoJson(points: MapPoint[], isochrones: IsochroneCollection) {
+  const mock = isochrones.some((feature) => feature.properties.mock || feature.properties.routingProvider === "synthetic");
   return {
     type: "FeatureCollection",
+    ...(mock ? { mapgap: { mock: true, notice: "Mock isochrones — schematic reach, not network travel time." } } : {}),
     features: [...pointsToGeoJson(points).features, ...isochrones],
   };
 }

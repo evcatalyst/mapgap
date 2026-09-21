@@ -1,4 +1,5 @@
 import toast from "react-hot-toast";
+import { useEffect, useRef } from "react";
 import { ROUTING_PROVIDER_LABELS } from "../constants";
 import { fetchIsochrones } from "../lib/api";
 import { debugError } from "../lib/debug";
@@ -17,7 +18,18 @@ type GenerateIsochronesOptions = {
   settings?: AppSettings;
 };
 
+let activeController: AbortController | undefined;
+export function cancelIsochroneGeneration() {
+  activeController?.abort();
+  activeController = undefined;
+  useMapIsoStore.getState().setGeneratingIsochrones(false);
+}
+
 export function useIsochroneGenerator() {
+  const ownedController = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => {
+    if (ownedController.current && activeController === ownedController.current) cancelIsochroneGeneration();
+  }, []);
   const points = useMapIsoStore((state) => state.points);
   const settings = useMapIsoStore((state) => state.settings);
   const setIsochrones = useMapIsoStore((state) => state.setIsochrones);
@@ -28,6 +40,10 @@ export function useIsochroneGenerator() {
   const refreshApiStatus = useMapIsoStore((state) => state.refreshApiStatus);
 
   const generateIsochrones = async (options: GenerateIsochronesOptions = {}) => {
+    cancelIsochroneGeneration();
+    const controller = new AbortController();
+    activeController = controller;
+    ownedController.current = controller;
     const targetPoints = options.points || points;
     const targetSettings = options.settings || settings;
     const targetStatus = useMapIsoStore.getState().status;
@@ -63,19 +79,24 @@ export function useIsochroneGenerator() {
 
     setGeneratingIsochrones(true);
     setGenerationError(undefined);
+    useMapIsoStore.getState().setGenerationSummary(undefined);
+    useMapIsoStore.getState().clearIsochrones();
 
     try {
       const result = options.quiet
-        ? await fetchIsochrones(targetPoints, targetSettings)
-        : await toast.promise(fetchIsochrones(targetPoints, targetSettings), {
+        ? await fetchIsochrones(targetPoints, targetSettings, controller.signal)
+        : await toast.promise(fetchIsochrones(targetPoints, targetSettings, controller.signal), {
             loading: `Calculating MapGap access heat with ${providerLabel}...`,
-            success: `Generated ${resultLabel(targetPoints.length, targetSettings.timeBuckets.length)} with ${providerLabel}.`,
+            success: (result) => `Generated ${result.completedCount} contours with ${providerLabel}.${result.warnings.length ? " Some results are unavailable." : ""}`,
             error: (error) =>
               error instanceof Error ? error.message : "Isochrone generation failed.",
           });
 
-      setIsochrones(result);
+      if (controller.signal.aborted || activeController !== controller) return;
+      setIsochrones(result.features);
+      useMapIsoStore.getState().setGenerationSummary(result);
     } catch (error) {
+      if (controller.signal.aborted || activeController !== controller) return;
       const message = error instanceof Error ? error.message : "Isochrone generation failed.";
 
       if (
@@ -99,19 +120,22 @@ export function useIsochroneGenerator() {
 
         try {
           const result = options.quiet
-            ? await fetchIsochrones(targetPoints, fallbackSettings)
-            : await toast.promise(fetchIsochrones(targetPoints, fallbackSettings), {
+            ? await fetchIsochrones(targetPoints, fallbackSettings, controller.signal)
+            : await toast.promise(fetchIsochrones(targetPoints, fallbackSettings, controller.signal), {
                 loading: "ORS denied isochrone access. Retrying with Valhalla beta...",
-                success: `Generated ${resultLabel(targetPoints.length, targetSettings.timeBuckets.length)} with Valhalla beta.`,
+                success: (result) => `Generated ${result.completedCount} contours with Valhalla beta.${result.warnings.length ? " Some results are unavailable." : ""}`,
                 error: (fallbackError) =>
                   fallbackError instanceof Error
                     ? fallbackError.message
                     : "Valhalla fallback failed.",
               });
 
-          setIsochrones(result);
+          if (controller.signal.aborted || activeController !== controller) return;
+          setIsochrones(result.features);
+          useMapIsoStore.getState().setGenerationSummary(result);
           return;
         } catch (fallbackError) {
+          if (controller.signal.aborted || activeController !== controller) return;
           const fallbackMessage =
             fallbackError instanceof Error ? fallbackError.message : "Valhalla fallback failed.";
           setGenerationError(fallbackMessage);
@@ -123,20 +147,19 @@ export function useIsochroneGenerator() {
       setGenerationError(message);
       debugError("Isochrone generation failed", error);
     } finally {
-      setGeneratingIsochrones(false);
-      refreshApiStatus();
+      if (activeController === controller) {
+        activeController = undefined;
+        setGeneratingIsochrones(false);
+        refreshApiStatus();
+      }
     }
   };
 
   return {
     generateIsochrones,
+    cancelGeneration: cancelIsochroneGeneration,
     isGeneratingIsochrones,
   };
-}
-
-function resultLabel(pointCount: number, bucketCount: number) {
-  const ringCount = pointCount * Math.max(1, bucketCount);
-  return `${ringCount} effort-adjusted ring${ringCount === 1 ? "" : "s"}`;
 }
 
 function isProviderAccessDenied(message: string) {

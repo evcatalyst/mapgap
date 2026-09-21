@@ -39,10 +39,11 @@ export function IsochroneLayer({ features }: { features: IsochroneFeature[] }) {
             <Popup>
               <div className="space-y-1 text-sm">
                 <div className="font-semibold">{feature.properties.pointName}</div>
-                <div>{feature.properties.bucketMinutes} minute network ring</div>
+                <div>{feature.properties.bucketMinutes} minute {feature.properties.mock ? "schematic contour" : "network ring"}</div>
                 <div>
-                  {ROUTING_PROVIDER_LABELS[feature.properties.routingProvider]} routing,
-                  terrain effort estimate {feature.properties.adjustedMinutes} min
+                  {feature.properties.mock
+                    ? "Synthetic demonstration. No roads, terrain or traffic were used."
+                    : `${ROUTING_PROVIDER_LABELS[feature.properties.routingProvider]} routing, terrain effort estimate ${feature.properties.adjustedMinutes} min`}
                 </div>
                 {settings.isochroneMode === "overlap" && (
                   <div className="text-neutral-600">

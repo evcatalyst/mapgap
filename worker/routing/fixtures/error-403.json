@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "status": "PERMISSION_DENIED",
+    "message": "Synthetic PERMISSION_DENIED fixture for MapGap UI testing."
+  }
+}

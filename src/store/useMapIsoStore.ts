@@ -105,6 +105,7 @@ type MapIsoState = {
   clearIsochrones: () => void;
   setGeneratingIsochrones: (value: boolean) => void;
   setGenerationError: (message?: string) => void;
+  setGenerationSummary: (summary?: AppStatus["generationSummary"]) => void;
   setTimeMinutes: (minutes: number) => void;
   setTransportMode: (mode: TransportMode) => void;
   setRoutingProvider: (provider: RoutingProvider) => void;
@@ -236,7 +237,13 @@ const defaultSettings: AppSettings = {
 function getReadyRoutingProvider(
   provider: RoutingProvider,
   capabilities: AppStatus["apiCapabilities"],
+  initial = false,
 ) {
+  // The keyless preview selects synthetic only during initial setup. Failed live
+  // runs never enter this branch or silently fall back to synthetic geometry.
+  if (initial && capabilities.synthetic && !capabilities.openRouteService && !capabilities.valhalla && provider === "ors") {
+    return "synthetic";
+  }
   if (provider === "ors" && !capabilities.openRouteService && capabilities.valhalla) {
     return "valhalla";
   }
@@ -517,12 +524,14 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
     debugLog("Isochrones updated", { count: features.length });
   },
   clearIsochrones: () => {
-    set({
+    set((state) => ({
       isochrones: [],
-    });
+      status: { ...state.status, generationSummary: undefined },
+    }));
     debugLog("Isochrones cleared");
   },
   setGeneratingIsochrones: (value) => set({ isGeneratingIsochrones: value }),
+  setGenerationSummary: (generationSummary) => set((state) => ({ status: { ...state.status, generationSummary } })),
   setGenerationError: (message) => {
     set((state) => ({
       status: {
@@ -837,7 +846,7 @@ export const useMapIsoStore = create<MapIsoState>((set, get) => ({
       return {
         settings: {
           ...state.settings,
-          routingProvider: getReadyRoutingProvider(state.settings.routingProvider, capabilities),
+          routingProvider: getReadyRoutingProvider(state.settings.routingProvider, capabilities, state.status.apiStatus === "unknown"),
         },
         status: {
           ...state.status,

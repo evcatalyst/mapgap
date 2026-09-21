@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "mapgap-fixtures/v1",
+  "createdDate": "2026-09-21",
+  "providerContractReference": "https://developers.google.com/maps/documentation/isochrones/reference/rest/v1/isochrones/generate",
+  "isSynthetic": true,
+  "dataOrigin": "Authored geometry for UI and adapter testing; no routing engine used.",
+  "displayLabel": "Demo travel areas — synthetic; not real travel times",
+  "successCases": [
+    {
+      "id": "albany-walk-from-300s",
+      "requestFile": "fixtures/albany-walk-from-300s.request.json",
+      "responseFile": "fixtures/albany-walk-from-300s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Nested thresholds for rendering, threshold identity, and adapter testing. Not a travel estimate."
+    },
+    {
+      "id": "albany-walk-from-600s",
+      "requestFile": "fixtures/albany-walk-from-600s.request.json",
+      "responseFile": "fixtures/albany-walk-from-600s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Nested thresholds for rendering, threshold identity, and adapter testing. Not a travel estimate."
+    },
+    {
+      "id": "albany-walk-from-1200s",
+      "requestFile": "fixtures/albany-walk-from-1200s.request.json",
+      "responseFile": "fixtures/albany-walk-from-1200s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Nested thresholds for rendering, threshold identity, and adapter testing. Not a travel estimate."
+    },
+    {
+      "id": "albany-walk-to-600s",
+      "requestFile": "fixtures/albany-walk-to-600s.request.json",
+      "responseFile": "fixtures/albany-walk-to-600s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Distinct inbound fixture to catch accidental reuse of FROM state."
+    },
+    {
+      "id": "albany-walk-hole-600s",
+      "requestFile": "fixtures/albany-walk-hole-600s.request.json",
+      "responseFile": "fixtures/albany-walk-hole-600s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Interior hole must remain excluded. Explicitly select this fixture ID because it shares a request with the ordinary example."
+    },
+    {
+      "id": "albany-drive-disconnected-900s",
+      "requestFile": "fixtures/albany-drive-disconnected-900s.request.json",
+      "responseFile": "fixtures/albany-drive-disconnected-900s.response.json",
+      "httpStatus": 200,
+      "isSynthetic": true,
+      "purpose": "Disconnected components must survive normalization and rendering; invented topology."
+    }
+  ],
+  "errorCases": [
+    {
+      "id": "error-400",
+      "responseFile": "fixtures/error-400.json",
+      "httpStatus": 400,
+      "headers": {},
+      "isSynthetic": true,
+      "purpose": "Representative error simulation; not captured from Google."
+    },
+    {
+      "id": "error-403",
+      "responseFile": "fixtures/error-403.json",
+      "httpStatus": 403,
+      "headers": {},
+      "isSynthetic": true,
+      "purpose": "Representative error simulation; not captured from Google."
+    },
+    {
+      "id": "error-404",
+      "responseFile": "fixtures/error-404.json",
+      "httpStatus": 404,
+      "headers": {},
+      "isSynthetic": true,
+      "purpose": "Representative error simulation; not captured from Google."
+    },
+    {
+      "id": "error-429",
+      "responseFile": "fixtures/error-429.json",
+      "httpStatus": 429,
+      "headers": {
+        "Retry-After": "2"
+      },
+      "isSynthetic": true,
+      "purpose": "Representative error simulation; not captured from Google."
+    },
+    {
+      "id": "error-503",
+      "responseFile": "fixtures/error-503.json",
+      "httpStatus": 503,
+      "headers": {},
+      "isSynthetic": true,
+      "purpose": "Representative error simulation; not captured from Google."
+    }
+  ]
+}

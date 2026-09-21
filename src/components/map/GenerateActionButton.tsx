@@ -4,6 +4,7 @@ import { useIsochroneGenerator } from "../../hooks/useIsochroneGenerator";
 import {
   getValhallaAccessRequiredMessage,
   isValhallaAccessReady,
+  isRoutingProviderReady,
 } from "../../lib/routingStatus";
 import { cn } from "../../lib/utils";
 import { useMapIsoStore } from "../../store/useMapIsoStore";
@@ -25,10 +26,7 @@ export function GenerateActionButton({
   const setSidebarOpen = useMapIsoStore((state) => state.setSidebarOpen);
   const { generateIsochrones, isGeneratingIsochrones } = useIsochroneGenerator();
   const selectedMode = MOBILITY_MODES[settings.mobilityMode];
-  const routingReady =
-    settings.routingProvider === "valhalla"
-      ? status.apiCapabilities.valhalla
-      : status.apiCapabilities.openRouteService;
+  const routingReady = isRoutingProviderReady(status, settings.routingProvider);
   const valhallaAccessReady = isValhallaAccessReady(status, settings);
   const needsValhallaAccess = routingReady && !valhallaAccessReady;
   const disabled = isGeneratingIsochrones || points.length === 0 || !routingReady;

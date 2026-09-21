@@ -21,6 +21,7 @@ type OpenCageResponse = {
 type RoutingIsochroneFeature = Feature<Polygon | MultiPolygon, Record<string, unknown>>;
 
 type RoutingIsochroneResponse = {
+  mapgap?: { provider: string; requestedCount: number; completedCount: number; failures: Array<{ seconds: number; message: string }> };
   features?: RoutingIsochroneFeature[];
   error?: {
     code?: number;
@@ -57,6 +58,13 @@ type IsochroneBucketRequest = {
 const ORS_REQUEST_SPACING_MS = 650;
 const VALHALLA_MAX_PARALLEL_REQUESTS = 4;
 
+export type IsochroneRunResult = {
+  features: IsochroneFeature[];
+  warnings: string[];
+  requestCount: number;
+  completedCount: number;
+};
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -87,7 +95,7 @@ function getRetryAfterSeconds(response: Response) {
 function buildNetworkError(provider: string, error: unknown) {
   if (error instanceof TypeError) {
     return new Error(
-      `${provider} request failed before MapGap could read the response. Run Netlify Dev locally so the API proxy is active, then try again.`,
+      `${provider} request failed before MapGap could read the response. Check that the MapGap API is running, then try again.`,
     );
   }
 
@@ -276,7 +284,8 @@ function getBucketForFeature(
 export async function fetchPointIsochrones(
   point: MapPoint,
   settings: AppSettings,
-) {
+  signal?: AbortSignal,
+): Promise<IsochroneRunResult> {
   const mode = MOBILITY_MODES[settings.mobilityMode];
   const providerLabel = ROUTING_PROVIDER_LABELS[settings.routingProvider];
   const buckets = (settings.timeBuckets.length > 0 ? settings.timeBuckets : [settings.timeMinutes])
@@ -295,7 +304,7 @@ export async function fetchPointIsochrones(
         adjustedMinutes,
         adjustedSeconds,
         requestSeconds:
-          settings.routingProvider === "valhalla" ? bucketMinutes * 60 : adjustedSeconds,
+          settings.routingProvider !== "ors" ? bucketMinutes * 60 : adjustedSeconds,
         effortScore,
         slopeBurden,
       };
@@ -316,6 +325,7 @@ export async function fetchPointIsochrones(
   try {
     response = await fetch("/api/routing/isochrones", {
       method: "POST",
+      signal,
       headers: {
         Accept: "application/json, application/geo+json",
         "Content-Type": "application/json",
@@ -364,6 +374,10 @@ export async function fetchPointIsochrones(
 
   const data = (await response.json()) as RoutingIsochroneResponse;
 
+  if (data.mapgap && data.mapgap.provider !== settings.routingProvider) {
+    throw new Error("The API returned a different routing provider. Results were discarded.");
+  }
+
   if (data.error?.message) {
     throw new Error(`${providerLabel}: ${data.error.message}`);
   }
@@ -374,7 +388,7 @@ export async function fetchPointIsochrones(
     throw new Error(`${providerLabel} returned no isochrone geometry.`);
   }
 
-  return features.map((feature, index) => {
+  const normalized = features.map((feature, index) => {
     const bucket = getBucketForFeature(feature, buckets, index);
 
     return {
@@ -387,43 +401,56 @@ export async function fetchPointIsochrones(
         color: mode.color,
         timeMinutes: settings.timeMinutes,
         bucketMinutes: bucket.bucketMinutes,
-        adjustedMinutes: bucket.adjustedMinutes,
-        effortScore: bucket.effortScore,
+        adjustedMinutes: settings.routingProvider === "ors" ? bucket.adjustedMinutes : bucket.bucketMinutes,
+        effortScore: settings.routingProvider === "ors" ? bucket.effortScore : 0,
         mobilityMode: settings.mobilityMode,
         transportMode: settings.transportMode,
         routingProvider: settings.routingProvider,
+        mock: settings.routingProvider === "synthetic" || feature.properties?.mock === true,
+        ...(settings.routingProvider === "synthetic" ? { notice: "Mock isochrones — schematic reach, not network travel time." } : {}),
         isochroneMode: settings.isochroneMode,
       },
     } satisfies IsochroneFeature;
   });
+  return {
+    features: normalized,
+    warnings: data.mapgap?.failures.map((failure) => `${point.name}: ${failure.seconds / 60} min contour unavailable. ${failure.message}`) ?? [],
+    requestCount: data.mapgap?.requestedCount ?? 1,
+    completedCount: data.mapgap?.completedCount ?? normalized.length,
+  };
 }
 
 export async function fetchIsochrones(
   points: MapPoint[],
   settings: AppSettings,
-) {
+  signal?: AbortSignal,
+): Promise<IsochroneRunResult> {
   try {
-    if (settings.routingProvider !== "valhalla") {
-      const features: IsochroneFeature[][] = [];
-
-      for (const [index, point] of points.entries()) {
-        if (index > 0) {
-          await sleep(ORS_REQUEST_SPACING_MS);
-        }
-
-        features.push(await fetchPointIsochrones(point, settings));
-      }
-
-      return features.flat();
-    }
-
-    const features = await mapWithConcurrency(
+    const results = await mapWithConcurrency(
       points,
-      Math.min(VALHALLA_MAX_PARALLEL_REQUESTS, Math.max(1, points.length)),
-      (point) => fetchPointIsochrones(point, settings),
+      settings.routingProvider === "ors" ? 1 : Math.min(VALHALLA_MAX_PARALLEL_REQUESTS, Math.max(1, points.length)),
+      async (point, index) => {
+        signal?.throwIfAborted();
+        if (settings.routingProvider === "ors" && index > 0) await sleep(ORS_REQUEST_SPACING_MS);
+        signal?.throwIfAborted();
+        try {
+          return { result: await fetchPointIsochrones(point, settings, signal) };
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          return { error: `${point.name}: ${error instanceof Error ? error.message : "Request failed."}` };
+        }
+      },
     );
-
-    return features.flat();
+    signal?.throwIfAborted();
+    const successes = results.flatMap((result) => result.result ? [result.result] : []);
+    const errors = results.flatMap((result) => result.error ? [result.error] : []);
+    if (!successes.length) throw new Error(errors[0] || "No isochrone results.");
+    return {
+      features: successes.flatMap((result) => result.features),
+      warnings: [...errors, ...successes.flatMap((result) => result.warnings)],
+      requestCount: successes.reduce((sum, result) => sum + result.requestCount, 0) + errors.length * (settings.routingProvider === "synthetic" || settings.routingProvider === "google" ? Math.max(1, settings.timeBuckets.length) : 1),
+      completedCount: successes.reduce((sum, result) => sum + result.completedCount, 0),
+    };
   } catch (error) {
     debugError("Isochrone generation failed", error);
     throw error;

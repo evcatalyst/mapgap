@@ -8,6 +8,24 @@ The app renders shared accessibility heatmaps from real walking/biking/driving
 network isochrones, keeps points synced with an editable table, and exports CSV,
 GeoJSON, and PNG artifacts.
 
+## Cloudflare rebuild preview
+
+The new keyless preview runs the existing SPA and a Worker together:
+
+```bash
+npm ci
+npm run dev:cloudflare
+```
+
+Open `http://127.0.0.1:8787/v2`, choose **Explore Nearby → Libraries → Walk**.
+Contours in this preview are visibly labeled synthetic demonstrations, not
+network travel times. Google and Valhalla are deliberately disabled here.
+The public-source catalog includes ArcGIS libraries and two data.ny.gov datasets;
+saved private imports are the next phase. See [the rebuild guide](docs/cloudflare-rebuild.md)
+for endpoints, checks, deployment and the remaining work.
+
+The Netlify setup below continues to describe the existing runtime.
+
 ## Local Development
 
 ```bash

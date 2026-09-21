@@ -12,8 +12,8 @@ async function parseApiError(response: Response) {
   const raw = await response.text();
 
   try {
-    const data = JSON.parse(raw) as { message?: string };
-    return data.message || raw || response.statusText;
+    const data = JSON.parse(raw) as { message?: string; error?: { message?: string } };
+    return data.error?.message || data.message || raw || response.statusText;
   } catch {
     return raw || response.statusText;
   }
@@ -54,7 +54,7 @@ export async function fetchServicePoints({
   } catch (error) {
     if (error instanceof TypeError) {
       throw new Error(
-        "Service point search needs the MapGap API proxy. Run Netlify Dev locally and try again.",
+        "Service point search needs the MapGap API. Start the configured runtime and try again.",
       );
     }
 
